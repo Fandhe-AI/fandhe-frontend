@@ -496,6 +496,8 @@ pub mod headless_timer;
 pub mod hold_to_confirm;
 pub mod hydration;
 pub mod in_view;
+#[cfg(feature = "action-keydown")]
+pub(crate) mod keydown_claim;
 pub mod keynav;
 #[cfg(feature = "layout-animation")]
 pub mod layout_flip;

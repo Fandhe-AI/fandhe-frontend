@@ -211,6 +211,21 @@ pub fn should_dismiss_mobile_drawer(mobile: bool, state: Option<&str>) -> bool {
     mobile && state == Some(SidebarState::Expanded.as_data_state())
 }
 
+/// sidebar の document keydown が `Escape` を消費するかを判定する純粋関数
+/// （イシュー #3768、汎用 keydown 配線との排他の述語。設計記録 §41.5）。
+///
+/// `dismiss_mobile_drawer` は既存の [`should_dismiss_mobile_drawer`] が真の provider が
+/// あること、`open_menu_button_tooltip` は Escape で閉じる menu-button tooltip が開いていることを
+/// 表す。どちらかが真なら sidebar が実際に何かを閉じるので真。
+/// Cmd/Ctrl+B 側は実処理と同じ [`is_toggle_shortcut`] を配線層の述語が直接使う。
+#[must_use]
+pub fn sidebar_consumes_escape(
+    dismiss_mobile_drawer: bool,
+    open_menu_button_tooltip: bool,
+) -> bool {
+    dismiss_mobile_drawer || open_menu_button_tooltip
+}
+
 /// `aria-describedby` の空白区切り id 列を分割する（純粋関数）。空要素
 /// （連続空白・前後の空白）は除去する。
 pub fn split_describedby(value: &str) -> impl Iterator<Item = &str> {
@@ -1321,25 +1336,7 @@ mod wiring {
     /// `data-part="content"` の要素のみを採用する。それ以外（`root` 外・
     /// 非 tooltip 要素を指す等）は no-op（fail-closed）。
     fn apply_tooltip_visibility(root: &Element, menu_button: &Element, visible: bool) {
-        let Some(describedby) = menu_button.get_attribute("aria-describedby") else {
-            return;
-        };
-        let Some(document) = root.owner_document() else {
-            return;
-        };
-        for id in split_describedby(&describedby) {
-            let Some(candidate) = document.get_element_by_id(id) else {
-                continue;
-            };
-            if !root.contains(Some(&candidate)) {
-                continue;
-            }
-            if candidate.get_attribute("data-scope").as_deref() != Some(TOOLTIP_SCOPE)
-                || candidate.get_attribute("data-part").as_deref() != Some(TOOLTIP_CONTENT_PART)
-            {
-                continue;
-            }
-
+        for candidate in resolve_tooltip_contents(root, menu_button) {
             set_hidden(&candidate, !visible);
             set_tooltip_data_state(&candidate, visible);
 
@@ -1356,6 +1353,43 @@ mod wiring {
                 }
             }
         }
+    }
+
+    /// `menu_button` の `aria-describedby` が指す tooltip content 要素を解決する。
+    ///
+    /// 各 id は `Document::get_element_by_id` でのみ解決し（CSS セレクタへ補間しない）、
+    /// `root` 配下かつ `data-scope="tooltip"` `data-part="content"` の要素のみを返す
+    /// （それ以外は除外、fail-closed）。[`apply_tooltip_visibility`] と
+    /// [`has_open_menu_button_tooltip`] が共有する。
+    fn resolve_tooltip_contents(root: &Element, menu_button: &Element) -> Vec<Element> {
+        let Some(describedby) = menu_button.get_attribute("aria-describedby") else {
+            return Vec::new();
+        };
+        let Some(document) = root.owner_document() else {
+            return Vec::new();
+        };
+        split_describedby(&describedby)
+            .filter_map(|id| document.get_element_by_id(id))
+            .filter(|candidate| {
+                root.contains(Some(candidate))
+                    && candidate.get_attribute("data-scope").as_deref() == Some(TOOLTIP_SCOPE)
+                    && candidate.get_attribute("data-part").as_deref() == Some(TOOLTIP_CONTENT_PART)
+            })
+            .collect()
+    }
+
+    /// `root` 配下に、Escape で閉じられる開いた menu-button tooltip があるか。
+    /// [`close_open_menu_button_tooltips`] が対象にする menu-button のうち、tooltip content が
+    /// `hidden` でないものを開いているとみなす。
+    #[cfg(feature = "action-keydown")]
+    fn has_open_menu_button_tooltip(root: &Element) -> bool {
+        query_all(root, MENU_BUTTON_SELECTOR)
+            .iter()
+            .any(|menu_button| {
+                resolve_tooltip_contents(root, menu_button)
+                    .iter()
+                    .any(|content| !content.has_attribute("hidden"))
+            })
     }
 
     /// `menu_button` の `aria-describedby` 値をそのまま tooltip インスタンス
@@ -1725,6 +1759,44 @@ mod wiring {
         // 越えて既登録の全 `root` を一括で判定できるようにする（同 doc
         // 参照）。
         register_keydown_root(root, &hover_state);
+
+        // 汎用 keydown 配線（`action-keydown`）との排他用の述語（イシュー #3768、設計記録
+        // §41.5）。`root` が切断されたら `Gone` で登録簿から自動除去される。無関係なキーでは
+        // DOM を走査しない。判定は実処理（[`handle_document_keydown`]）と同じ純粋関数・
+        // 同じ解決（trigger → rail）を使う。
+        #[cfg(feature = "action-keydown")]
+        {
+            use crate::keydown_claim::{register, KeydownClaimInput, Verdict};
+            let claim_root = root.clone();
+            register(Rc::new(move |input: &KeydownClaimInput| {
+                if !claim_root.is_connected() {
+                    return Verdict::Gone;
+                }
+                let consumes = if input.key == "Escape" {
+                    let dismiss = all_providers(&claim_root).iter().any(|provider| {
+                        should_dismiss_mobile_drawer(
+                            provider.has_attribute("data-mobile"),
+                            provider.get_attribute("data-state").as_deref(),
+                        )
+                    });
+                    super::sidebar_consumes_escape(
+                        dismiss,
+                        has_open_menu_button_tooltip(&claim_root),
+                    )
+                } else if is_toggle_shortcut(input.key, input.ctrl, input.meta, input.alt, false) {
+                    find_first_enabled(&claim_root, TRIGGER_SELECTOR)
+                        .or_else(|| find_first_enabled(&claim_root, RAIL_SELECTOR))
+                        .is_some_and(|target| target.dyn_ref::<HtmlElement>().is_some())
+                } else {
+                    false
+                };
+                if consumes {
+                    Verdict::Consumes
+                } else {
+                    Verdict::Passes
+                }
+            }));
+        }
 
         let document = web_sys::window()
             .and_then(|window| window.document())
@@ -2097,6 +2169,14 @@ pub use wiring::{wire_sidebar_dispatch, wire_sidebar_events, wire_sidebar_events
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sidebar_consumes_escape_truth_table() {
+        assert!(!sidebar_consumes_escape(false, false));
+        assert!(sidebar_consumes_escape(true, false));
+        assert!(sidebar_consumes_escape(false, true));
+        assert!(sidebar_consumes_escape(true, true));
+    }
 
     // --- is_toggle_shortcut ---
 

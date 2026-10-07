@@ -3171,18 +3171,16 @@ bubble フェーズにあり、同一 target・同一フェーズのリスナー
 `default_prevented()` が真なら何もしない。部品が処理して `preventDefault` したキーは部品が
 優先され、処理しなかったキーを汎用配線が受け取る。
 
-規則がカバーしないケース:
+規則がカバーしないケース（document/window の部品との排他）は §41.5 の方式 2b で解消した
+（実装はイシュー #3768、0.46.0）。overlay の Escape（document）・command の Ctrl/Cmd+K
+（window）・sidebar の Cmd/Ctrl+B と Escape（document）は root の bubble より後に動くため
+`defaultPrevented` では排他にできず、部品が登録した消費述語を汎用配線が dispatch の直前に参照する。
 
-1. overlay の Escape（document）・command の Ctrl/Cmd+K（window）・sidebar の Cmd/Ctrl+B
-   （document）は root の bubble より後に動くため、汎用配線が先に動く。overlay は
-   `defaultPrevented` を見ないので、汎用の `Escape` に opt-in を付けても overlay の閉鎖は
-   従来どおり働き両方が動く。sidebar は見るため、opt-in した汎用配線があると処理を見送る。
-2. keynav は Menu・Menubar の Escape で overlay に観測させるため意図的に `preventDefault`
-   しない。汎用の `Escape` は keynav の後始末と並行して発火する。排他にしたい場合は
-   オーバーレイを内包しない要素に `data-action-keydown` を置く。
-
-上記 2 件を排他にする方式は §41.5 で決定した（実装はイシュー #3768）。#3768 のマージまでは
-本節の挙動が現状である。
+- overlay の Escape は、`OverlayCloseController` に閉鎖可能な overlay が登録されているとき
+  述語が真になり、汎用配線は見送る。コントローラを使わない構成では従来どおり並行発火するため、
+  利用者が `data-action-keydown` の置き場所（オーバーレイを内包しない要素）で回避する。
+- keynav は Menu・Menubar の Escape で overlay に観測させるため意図的に `preventDefault` しない。
+  その overlay が上記コントローラに登録されていれば述語により排他になる。
 
 ### 41.4 feature・semver・テスト
 
@@ -3279,3 +3277,22 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
   発火」は `action_keydown_browser.rs` に追加する。既存の keynav/overlay/sidebar/command の
   ブラウザ試験は無改変で通ること。
 - 対象外: 打ち消し用 opt-in 属性。
+
+#### 41.5.5 実装状況（イシュー #3768、0.46.0）
+
+- 登録簿は `crates/wasm-full/src/keydown_claim.rs`（`pub(crate)`、feature `action-keydown` に従属、
+  web-sys 非依存で native テスト可能）。`register`/`unregister`/`claims` と
+  `Verdict { Consumes, Passes, Gone }` を持ち、`claims` は借用を解放してから述語を呼ぶ
+  （再入しても panic しない）。`Gone` を返した登録は次の問い合わせで自動除去する。
+- `events::wiring::wire_keydown` は `action_from_keydown` が `Some` の後、`preventDefault` と
+  dispatch の前に `claims` を参照する。`None`（IME 変換中・不一致）の場合は登録簿を見ない。
+- overlay は純粋関数 `overlay_consumes_keydown`（`escape_close_index` を再利用）を
+  `OverlayCloseController::new` で登録し、`Drop` で解除する。
+- sidebar は `sidebar_consumes_escape`（`should_dismiss_mobile_drawer`・開いている menu-button
+  tooltip）と `is_toggle_shortcut`・trigger/rail 解決を `wire_keydown` で root ごとに登録する。
+  command は `is_document_toggle`（`is_toggle_shortcut` + Shift 除外）と `toggle_target`
+  （dialog・インスタンス解決・無効化契約）を `wire_command_events` で登録する。
+  どちらも `root.is_connected()` が偽なら `Gone` を返す。
+- 検証: `keydown_claim.rs`・`overlay.rs`・`sidebar.rs`・`command.rs` の native テストと、
+  `action_keydown_browser.rs` の排他ケース（部品のみ発火・汎用のみ発火の双方）。
+
