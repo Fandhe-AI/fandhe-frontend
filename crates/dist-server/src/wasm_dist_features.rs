@@ -24,9 +24,9 @@
 //!
 //! # 「最小インタラクティブコンポーネント」集合の判断根拠
 //!
-//! 採用する集合（`WASM_DIST_FEATURES`）は次の 6 件:
+//! 採用する集合（`WASM_DIST_FEATURES`）は次の 7 件:
 //! `wasm-bindgen-exports` / `collapsible` / `dialog` / `popover` /
-//! `tooltip` / `position`。
+//! `tooltip` / `position` / `action-keydown`。
 //!
 //! - REQ-11 本文が定義するワークロード（カウンター・フォーム入力・
 //!   動的リスト更新相当）は、常時配線される `events::wire_events`
@@ -49,6 +49,12 @@
 //!   （`headless::wire_headless_component` 内の
 //!   `ensure_global_controller`/`reposition_within`、イシュー #2209）に
 //!   必要なため含める。
+//! - `action-keydown` は汎用 keydown 配線（`data-action-keydown`、
+//!   イシュー #3765）。アプリ側 action を受ける opt-in の純 Rust 配線で、
+//!   `keynav.rs` に `feature = "action-keydown"` の cfg 分岐を持たず、
+//!   keynav / focus-visible への依存も追加依存もない。gzip 実測は 121,799 B から
+//!   124,556 B（+2,757 B）で警告しきい値 190,000 B を大きく下回るため含める
+//!   （`docs/design/wasm-full-architecture.md` §41.4）。
 //! - 配線群別 feature（avatar / clipboard / timer / angle-slider /
 //!   splitter / signature-pad / number-input / command / sidebar /
 //!   chart / chart-range / questionnaire）は対象外。
@@ -68,6 +74,7 @@ pub const WASM_DIST_FEATURES: &[&str] = &[
     "popover",
     "tooltip",
     "position",
+    "action-keydown",
 ];
 
 /// ネスト `cargo build -p fandhe-frontend-wasm-full` / feature 検証ビルド
@@ -123,7 +130,7 @@ mod tests {
         assert_eq!(args[1], "--features");
         assert_eq!(
             args[2],
-            "wasm-bindgen-exports,collapsible,dialog,popover,tooltip,position"
+            "wasm-bindgen-exports,collapsible,dialog,popover,tooltip,position,action-keydown"
         );
     }
 }

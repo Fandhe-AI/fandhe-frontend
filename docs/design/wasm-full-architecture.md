@@ -3184,7 +3184,18 @@ bubble フェーズにあり、同一 target・同一フェーズのリスナー
 
 ### 41.4 feature・semver・テスト
 
-- `dist-server` の最小配布構成（`WASM_DIST_FEATURES`）には加えない（bundle_size 不変）。
+- `dist-server` の最小配布構成（`WASM_DIST_FEATURES`）へ加える（イシュー #3765）。判断は
+  `bundle_size.rs` の gzip 実測で行った（2026-10-08、wasm-opt -Os version 129 適用、
+  `#3764`・`#3772` 反映後の main）。
+
+  | 構成 | `bundle-size:` 1 行サマリ |
+  |------|---------------------------|
+  | 現行 6 件 | `total_gzip_bytes=121799/200000 files=2 result=PASS` |
+  | `action-keydown` 追加後 7 件 | `total_gzip_bytes=124556/200000 files=2 result=PASS` |
+
+  増分は +2,757 B（約 2.3%）で、警告しきい値 190,000 B まで 65,444 B の余裕が残る。
+  「加えても警告しきい値を超えないなら加える」の判断ルールに従い加える。`keynav.rs` に
+  `action-keydown` の cfg 分岐はなく、keynav・focus-visible への依存もない。
 - 公開 API の純追加のため minor バンプ（0.42.0 → 0.43.0）。
 - `crates/wasm-full/tests/action_keydown_browser.rs`（一致時の差分更新と要素の同一性、keyed list、
   不一致キー、IME 除外、preventDefault の opt-in、優先順位、root 外、hydrate 経路、XSS）で検証する。
