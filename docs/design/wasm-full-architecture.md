@@ -3217,8 +3217,12 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 | command | `is_toggle_shortcut`（Ctrl/Cmd+K、Shift なし・Alt なし）かつ有効な dialog がある（`has_disabled_ancestor` が偽） |
 
 - `root.is_connected()` が偽の登録は無視する（fail-closed。登録簿が空・述語が偽なら従来動作）。
-- keynav の Escape 非 `preventDefault` は変更しない。overlay が閉じるケースは overlay 述語が真で
-  汎用が見送り、overlay を内包しない要素では述語が偽で汎用が受ける。
+- keynav の Escape 非 `preventDefault` は変更しない。overlay の Escape 閉鎖は document リスナーで
+  event target の包含関係もフォーカス位置も見ず、スタックの `escape_close_index` が `Some` なら閉じる。
+  したがって overlay の述語もフォーカス位置に依存しない。閉鎖可能な overlay が開いている間は、
+  overlay の外側にある `data-action-keydown` 要素での Escape でも述語が真になり、汎用が見送る
+  （受けると汎用 action と overlay 閉鎖が二重発火する）。汎用が Escape を受けるのは、閉鎖可能な
+  overlay がない場合（開いていない、または最上位が opt-out で `escape_close_index` が `None`）に限る。
 - root bubble の部品（keynav・number_input・angle_slider・splitter・command の入力欄）は従来どおり
   `defaultPrevented` 規則で排他とし、述語方式は document/window 部品に限定する。
 - 述語は状態保持の `Rc` を読むだけにし、keydown ごとの DOM 全走査を避ける。リスナー数と
