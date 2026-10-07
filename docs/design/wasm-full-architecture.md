@@ -3099,6 +3099,6 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 
 ### 40.4 semver・テスト
 
-公開 API の純追加のため minor バンプ（0.40.4 → 0.41.0）。テストは
+公開 API の純追加のため minor バンプ（0.41.0 → 0.42.0）。テストは
 `events.rs` 内単体テストと `crates/wasm-full/tests/keydown_native.rs`
 （native、一致・不一致・修飾キー・IME・不正値・preventDefault opt-in）で検証する。
