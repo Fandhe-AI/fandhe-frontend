@@ -123,7 +123,7 @@ HTML 活性文字だけを `\uXXXX` 中立化する専用 API です。渡す文
 `fandhe-frontend-dist-server` を crates.io からの外部依存として使うため
 `build.rs` の WASM ビルドステージが自動スキップされ、WASM は一切出荷され
 ません。`fandhe-frontend-wasm-full` の「最小インタラクティブコンポーネント」
-6 feature 構成が実際に適用されるのは、`fandhe-frontend-dist-server` を
+7 feature 構成が実際に適用されるのは、`fandhe-frontend-dist-server` を
 ワークスペース内でビルドする経路（例: ルート `Dockerfile`）に限られる点に
 注意してください。関連:
 [wasm-full feature 選択ガイド](./wasm-full-features.md)。

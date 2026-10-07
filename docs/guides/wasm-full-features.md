@@ -512,12 +512,12 @@ features = [
 ## 8. dist-server 最小構成
 
 `fandhe-frontend-dist-server`（配布 WASM）は「最小インタラクティブ
-コンポーネント」として次の 6 feature のみを有効にして配布します
+コンポーネント」として次の 7 feature のみを有効にして配布します
 （イシュー #2329、単一定義は `crates/dist-server/src/wasm_dist_features.rs`
 の `WASM_DIST_FEATURES`）。
 
 ```
-wasm-bindgen-exports, collapsible, dialog, popover, tooltip, position
+wasm-bindgen-exports, collapsible, dialog, popover, tooltip, position, action-keydown
 ```
 
 判断根拠:
@@ -568,7 +568,7 @@ files=2 result=PASS`（上限余裕 79,382 B）。CI は wasm-opt 未導入の�
 ```bash
 cargo check -p fandhe-frontend-wasm-full \
   --no-default-features \
-  --features wasm-bindgen-exports,collapsible,dialog,popover,tooltip,position \
+  --features wasm-bindgen-exports,collapsible,dialog,popover,tooltip,position,action-keydown \
   --target wasm32-unknown-unknown --locked
 ```
 
@@ -613,7 +613,7 @@ feature を含む）で `fandhe-frontend-wasm-full` へ feature を追加する�
    `bundle-size:` 1 行サマリの実測値を PR 本文に記録する
    （`.claude/rules/ci.md` 既定要件）。
 7. `crates/dist-server/src/wasm_dist_features.rs` の `WASM_DIST_FEATURES`
-   （6 feature の最小インタラクティブ構成）へ新規 feature を**追加しな
+   （7 feature の最小インタラクティブ構成）へ新規 feature を**追加しな
    い**ことを確認する（既定は非追加。追加が必要な場合は同ファイル冒頭
    コメントへ判断根拠を追記する重い変更になる）。
 

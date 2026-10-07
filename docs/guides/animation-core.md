@@ -379,7 +379,7 @@ fandhe-frontend-animation ← wasm-full(optional)`）。
 
 いずれも `crates/dist-server/src/wasm_dist_features.rs` の
 `WASM_DIST_FEATURES`（`fandhe-frontend-dist-server` が配布する最小
-インタラクティブ構成 6 feature）には含まれていません。つまり、
+インタラクティブ構成 7 feature）には含まれていません。つまり、
 `fandhe-frontend-dist-server` 経由の配布 WASM にはこれらの機能は
 出荷されません（`docs/guides/wasm-full-features.md` を参照）。
 

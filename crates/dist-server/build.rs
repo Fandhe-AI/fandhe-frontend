@@ -112,7 +112,7 @@
 //! ネスト `cargo build -p fandhe-frontend-wasm-full` は
 //! `wasm_dist_features::WASM_DIST_FEATURES` が定義する最小構成
 //! （`wasm-bindgen-exports`/`collapsible`/`dialog`/`popover`/`tooltip`/
-//! `position` の 6 件）へ `--no-default-features` で縮小する。この集合は
+//! `position` / `action-keydown` の 7 件）へ `--no-default-features` で縮小する。この集合は
 //! `crates/wasm-full/tests/bundle_size.rs`（REQ-11 gzip サイズ計測）が
 //! `#[path]` で同じファイルを取り込んで参照する唯一の正であり、計測と
 //! 配布物の feature 集合が構造的に乖離しない（`src/wasm_dist_features.rs`
