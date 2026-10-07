@@ -3072,7 +3072,7 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 うち、web-sys に依存しない純粋ロジック層を `crates/wasm-full/src/events.rs`
 に追加した。リスナー登録・`closest("[data-action-keydown]")` による祖先探索・
 `preventDefault()` の実呼び出し・部品専用配線との優先順位・feature 新設は
-#3754 で扱う（本節の範囲外）。
+#3754 で扱う（本節の範囲外。§41 参照）。
 
 ### 40.1 属性契約
 
@@ -3102,3 +3102,55 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 公開 API の純追加のため minor バンプ（0.41.0 → 0.42.0）。テストは
 `events.rs` 内単体テストと `crates/wasm-full/tests/keydown_native.rs`
 （native、一致・不一致・修飾キー・IME・不正値・preventDefault opt-in）で検証する。
+
+## 41. 汎用 keydown 配線の配線層（イシュー #3754、親 #3752）
+
+§40 の純粋ロジックを `Runtime::mount`/`hydrate` へ接続する配線層。実装は
+`events::wire_keydown`（`crates/wasm-full/src/events.rs`）と private な
+`Runtime::wire_keydown`（`lib.rs`）で、feature `action-keydown`（既定 on、追加依存なし）
+でゲートする。
+
+### 41.1 リスナーと対象要素
+
+- root に keydown の委譲リスナーを 1 つだけ登録する（`Closure::forget` も 1 回）。
+- keydown の target はフォーカス中の要素。`closest("[data-action-keydown]")` で target か
+  祖先を探し、`root.contains` で root 内に限る。何もフォーカスされていない場合
+  （target が `body`）は no-op。
+- click 用の境界ガード（`foreign_action_boundary_between` 等）は再利用しない。入力欄の
+  内側で Esc を受けるのが主用途で、`input` を境界とみなすと目的に反するため。
+- `Self::wire` の閉包に流すので、dispatch -> `dirty_fields()` -> `apply_update_for_dirty`
+  の経路は click/input と同一（再入・未知 action は no-op）。
+
+### 41.2 preventDefault の時機
+
+照合成功かつ `data-keydown-prevent-default` の opt-in があるときだけ、dispatch より前に
+`preventDefault()` を呼ぶ。dispatch 結果には左右されない。`stopPropagation()` は呼ばない。
+
+### 41.3 部品専用配線との優先順位
+
+部品専用の keydown（keynav・command・number_input・angle_slider・splitter）は root の
+bubble フェーズにあり、同一 target・同一フェーズのリスナーは登録順に動く。
+`stopPropagation` は同一要素上の他リスナーを止めないため、判別に使えるのは
+`defaultPrevented` だけである（sidebar と同じ考え方）。
+
+規則: 汎用リスナーは `mount`/`hydrate` の**最後の配線**として登録し、冒頭で
+`default_prevented()` が真なら何もしない。部品が処理して `preventDefault` したキーは部品が
+優先され、処理しなかったキーを汎用配線が受け取る。
+
+規則がカバーしないケース:
+
+1. overlay の Escape（document）・command の Ctrl/Cmd+K（window）・sidebar の Cmd/Ctrl+B
+   （document）は root の bubble より後に動くため、汎用配線が先に動く。overlay は
+   `defaultPrevented` を見ないので、汎用の `Escape` に opt-in を付けても overlay の閉鎖は
+   従来どおり働き両方が動く。sidebar は見るため、opt-in した汎用配線があると処理を見送る。
+2. keynav は Menu・Menubar の Escape で overlay に観測させるため意図的に `preventDefault`
+   しない。汎用の `Escape` は keynav の後始末と並行して発火する。排他にしたい場合は
+   オーバーレイを内包しない要素に `data-action-keydown` を置く。
+
+### 41.4 feature・semver・テスト
+
+- `dist-server` の最小配布構成（`WASM_DIST_FEATURES`）には加えない（bundle_size 不変）。
+- 公開 API の純追加のため minor バンプ（0.42.0 → 0.43.0）。
+- `crates/wasm-full/tests/action_keydown_browser.rs`（一致時の差分更新と要素の同一性、keyed list、
+  不一致キー、IME 除外、preventDefault の opt-in、優先順位、root 外、hydrate 経路、XSS）で検証する。
+- 対象外: `KeyboardEvent.repeat` の抑止、`data-payload` との合成。

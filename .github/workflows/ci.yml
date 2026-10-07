@@ -1235,6 +1235,16 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test count_up_browser
 
+      # イシュー #3754（親 #3752）: 汎用 keydown 配線（`Runtime::wire_keydown`、
+      # 属性 `data-action-keydown`）の実ブラウザ統合テスト（crates/wasm-full/
+      # tests/action_keydown_browser.rs）。mount/hydrate の双方・IME 除外・
+      # preventDefault の opt-in・部品専用配線への優先順位を固定する。
+      # 他の wasm-full ステップと同じ check-wasm-full 存在ガードを再利用し、
+      # 新規ガードは追加しない。
+      - name: Run wasm-full action-keydown browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test action_keydown_browser
+
       # イシュー #2532（text アニメーション部品）: text_animation
       # （crates/wasm-full/src/text_animation.rs）の候補走査・reduced-motion
       # 抑制・typewriter/scramble 完了時の全文一致の実ブラウザ統合テスト
@@ -2757,6 +2767,8 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,carousel-motion --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: count-up, issue #2539)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,count-up --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+      - name: "cargo clippy (wasm32-unknown-unknown, feature: action-keydown, issue #3754)"
+        run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,action-keydown --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: text-animation, issue #2532)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,text-animation --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: ticker, issue #2540)"
