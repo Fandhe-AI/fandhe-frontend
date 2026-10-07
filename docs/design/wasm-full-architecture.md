@@ -3162,6 +3162,9 @@ bubble フェーズにあり、同一 target・同一フェーズのリスナー
    しない。汎用の `Escape` は keynav の後始末と並行して発火する。排他にしたい場合は
    オーバーレイを内包しない要素に `data-action-keydown` を置く。
 
+上記 2 件を排他にする方式は §41.5 で決定した（実装はイシュー #3768）。#3768 のマージまでは
+本節の挙動が現状である。
+
 ### 41.4 feature・semver・テスト
 
 - `dist-server` の最小配布構成（`WASM_DIST_FEATURES`）には加えない（bundle_size 不変）。
@@ -3171,3 +3174,89 @@ bubble フェーズにあり、同一 target・同一フェーズのリスナー
 - `KeyboardEvent.repeat` の抑止は `data-keydown-ignore-repeat` の opt-in で対応済み（§40.5、0.44.0）。
   配線層は preventDefault → `repeat_suppressed` なら return → `on_action` の順に処理する。
 - 対象外: `data-payload` との合成。
+
+### 41.5 document/window の部品配線との排他方式（イシュー #3767、実装は #3768）
+
+#### 41.5.1 問題
+
+root の bubble で動く部品は `defaultPrevented` で汎用配線と排他にできる（§41.3）。一方、
+次の部品は document/window に登録するため、伝播順（root bubble -> document -> window）の都合で
+汎用配線より後に動く。ここでの「排他」は、1 回の keydown に対して汎用 action の dispatch と
+部品動作のどちらか一方だけが起きることを指す。
+
+| 部品 | 登録先 | キー | `defaultPrevented` |
+|------|--------|------|--------------------|
+| overlay（`OverlayCloseController`） | document | `Escape`（最上位 overlay が `close_on_escape` のとき閉鎖） | 見ない・`preventDefault` も呼ばない |
+| sidebar | document | `Escape`（モバイル drawer・menu-button tooltip の閉鎖）、`Cmd/Ctrl+B`（トグル） | 見る |
+| command | window | `Ctrl/Cmd+K`（Shift なし・Alt なし・有効な dialog があるとき。一致時は必ず `preventDefault`） | 見ない |
+
+守る条件: overlay の Escape 閉鎖と、keynav が Menu・Menubar の Escape で意図的に
+`preventDefault` しない挙動（overlay に観測させるため）を変えない。
+
+#### 41.5.2 候補
+
+1. 部品側が処理したキーで `preventDefault`/`stopPropagation` する。
+   - 利点: 既存の `defaultPrevented` 規約と揃う。
+   - 欠点: 汎用配線は部品より先に動くため、部品の処理を待てず順序上成立しない。成立させるには
+     部品を capture フェーズ等へ移す必要があり、keynav と overlay の収束を崩す。overlay が
+     Escape を `preventDefault` するとネイティブ `<dialog>` の cancel や sidebar の Escape
+     （`defaultPrevented` で見送る）の挙動も変わる。
+2. 汎用配線が部品の領域では処理を見送る。
+   - 2a. DOM 状態（`[data-state="open"]` 等）で判定する。利点は部品側が無改修なこと。欠点は、
+     overlay の Escape がフォーカス位置に依らず最上位 1 枚だけを閉じ、最上位が opt-out なら
+     下層へ透過しないというスタック規則（`escape_close_index`）を DOM から再現できず、
+     見送り過ぎ・見送り漏れが起きること。scope 名の対応表も二重管理になる。
+   - 2b. 部品が「このキーを自分が消費するか」を返す述語を登録し、汎用配線が dispatch 前に
+     参照する。利点は、部品が実際に処理するときと同じ純粋判定を共有でき、スタック状態・
+     無効化・Shift/Alt 条件まで正確なこと。伝播順に依存せず決定的で、`preventDefault` の
+     副作用を持ち込まない。native の `cargo test` で検証できる。欠点は wasm-full 内部に小さな
+     登録簿が増えること。overlay は Drop で解除できるが、sidebar/command は `Closure::forget`
+     のため登録が残る。
+3. 要素ごとの opt-in 属性（例: `data-keydown-priority`）で優先を指定する。利点は宣言的なこと。
+   欠点は既定が二重発火のままで safe-by-default でないこと、overlay が今開いているかという
+   動的状態を表せないこと、属性が API 面として増えること。
+4. 汎用リスナーを window の bubble 末尾へ移し、部品が処理後に `preventDefault` する。
+   欠点は、`data-keydown-prevent-default` の既存意味（汎用が先に `preventDefault` して
+   sidebar を抑止できる）が変わること、root 内の `stopPropagation` で汎用配線に届かなくなること、
+   overlay へ `preventDefault` を足す必要があり候補 1 と同じ副作用を持つこと。
+
+#### 41.5.3 決定: 2b（消費述語の登録簿）
+
+- 汎用配線は `data-action-keydown` の照合が成功し dispatch する直前に、登録簿へ「いずれかの
+  部品がこの keydown を消費するか」を問い合わせる。真なら dispatch も `preventDefault` も行わず
+  見送り、部品が単独で処理する。偽なら従来どおり。
+- 述語は実処理と同じ純粋関数を再利用し、判定を重複させない。
+
+| 部品 | 述語が真になる条件 |
+|------|--------------------|
+| overlay | `Escape` かつ `escape_close_index` が `Some`（最上位が opt-out なら偽で、汎用が受ける） |
+| sidebar | `Escape` で `should_dismiss_mobile_drawer` が真の provider または開いている menu-button tooltip がある、または `is_toggle_shortcut`（Cmd/Ctrl+B、Alt なし）かつ有効な trigger/rail がある |
+| command | `is_toggle_shortcut`（Ctrl/Cmd+K、Shift なし・Alt なし）かつ有効な dialog がある（`has_disabled_ancestor` が偽） |
+
+- `root.is_connected()` が偽の登録は無視する（fail-closed。登録簿が空・述語が偽なら従来動作）。
+- keynav の Escape 非 `preventDefault` は変更しない。overlay の Escape 閉鎖は document リスナーで
+  event target の包含関係もフォーカス位置も見ず、スタックの `escape_close_index` が `Some` なら閉じる。
+  したがって overlay の述語もフォーカス位置に依存しない。閉鎖可能な overlay が開いている間は、
+  overlay の外側にある `data-action-keydown` 要素での Escape でも述語が真になり、汎用が見送る
+  （受けると汎用 action と overlay 閉鎖が二重発火する）。汎用が Escape を受けるのは、閉鎖可能な
+  overlay がない場合（開いていない、または最上位が opt-out で `escape_close_index` が `None`）に限る。
+- root bubble の部品（keynav・number_input・angle_slider・splitter・command の入力欄）は従来どおり
+  `defaultPrevented` 規則で排他とし、述語方式は document/window 部品に限定する。
+- 述語は状態保持の `Rc` を読むだけにし、keydown ごとの DOM 全走査を避ける。リスナー数と
+  `Closure::forget` の回数は増やさない。`stopPropagation` は呼ばず、`raw_html()` 等の新たな
+  エスケープ迂回経路は作らない。
+
+候補 3 は採用しない。部品優先を打ち消したい要望が出た場合の逃げ道として、将来追加する余地だけ残す。
+
+#### 41.5.4 semver・検証方針（#3768 向け）
+
+- 挙動変更: これまで両方発火していた組み合わせが部品優先の片方のみになる。§41.3 の「両方が動く」
+  挙動に依存する利用者がいるため、0.x の破壊的変更としてマイナーバンプ（0.43.0 -> 0.44.0 想定。
+  実装 PR 時点の main の版数に +1 し、同じ版数は衝突として扱う）。依存元（`dist-server` 等）の
+  `version = "..."` 指定への波及を #3768 で確認する。
+- 公開 API は純追加（登録簿は crate 内部で `pub` にしない）。feature は `action-keydown` に従属し、
+  `WASM_DIST_FEATURES` には加えない。
+- 純粋層は native 単体テスト、overlay Escape・sidebar Cmd/Ctrl+B・command Ctrl/Cmd+K の「片方のみ
+  発火」は `action_keydown_browser.rs` に追加する。既存の keynav/overlay/sidebar/command の
+  ブラウザ試験は無改変で通ること。
+- 対象外: 打ち消し用 opt-in 属性。
