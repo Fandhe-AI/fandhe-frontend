@@ -853,6 +853,36 @@ fn commit_keyed_list_result_cache_miss(
 /// （[`entry`] モジュール参照実装）は `Runtime<C>` を `thread_local!` に
 /// 保持し、ラッパー関数を抜けたあとも状態・イベント配線が意図した生存期間
 /// として維持されるようにする。
+///
+/// # keyed list の更新（親要素の属性と項目数の上限、イシュー #3755）
+///
+/// ## 親要素の属性は `view()` に書く
+///
+/// keyed list の field が dirty になる更新のたびに、親要素（`data-bind-list`
+/// を持つコンテナ）の属性は `view()` が返す属性列へ同期される。`view()`
+/// に無い属性（JS などで後から付けた `aria-live`・class・`data-*`、
+/// `data-fandhe-flip-auto` など）は削除される。`view()` も出している属性の
+/// 値を外部で変えた場合、イベントハンドラ・URL・`srcset` の各属性は毎回
+/// 検証して書き戻すため次の dirty 更新で `view()` の値へ戻るが、それ以外
+/// （class・`aria-live` 等）は直前に読み戻した値と新しい `view()` の値が
+/// 同じなら書き込みを省略するため、外部の値は次の dirty 更新では残る。その
+/// 更新で外部の値がキャッシュへ読み戻されるので、さらにその次の dirty 更新で
+/// `view()` の値へ戻る（`view()` の値が変わった更新ではその更新で上書きされる）。
+/// 要素のノード同一性は保たれる（タグ変更・構造フォールバック時を除く）。
+/// 子アイテムも内容が変わった回に同じ同期を受ける。これは SSR hydrate
+/// ドリフトの収束と REQ-1 の自己修復のための意図した挙動である。親要素に
+/// 要る属性は、後から付けず `view()` に書くこと。
+///
+/// ## 項目数の上限
+///
+/// 項目数は `fandhe_frontend_core::keyed::MAX_KEYED_LIST_ITEMS`（4,096）、
+/// キー文字列の合計バイト数は `MAX_KEYED_LIST_KEY_BYTES` までで、超えると
+/// `keyed_list()` が `Err` を返す（SSR を含む全ターゲット共通）。
+/// `Component::view` は `Result` を返せないため `Err` の扱いはアプリの責務で、
+/// `expect` すると wasm が trap する。非 keyed のリストへフォールバック
+/// すると、更新のたびに root 配下を作り直す（keyed 差分更新の利点を失う）。
+/// ページング・末尾 N 件のみ・field の分割を推奨する（詳細は
+/// `docs/guides/wasm-full-features.md` §12）。
 #[cfg(target_arch = "wasm32")]
 pub struct Runtime<C: Component> {
     /// イベント後更新（束縛点更新 + keyed list 更新、`Self::wire`）で共有参照する必要があるため

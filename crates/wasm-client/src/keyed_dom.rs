@@ -1673,6 +1673,25 @@ fn apply_keyed_list_core(
 /// field 無効化（`docs/design/keyed-update-op-design.md` §6 不変条件 9・10
 /// 参照）の後にのみ到達するリカバリ経路であり、収束保証を最優先する
 /// トレードオフとしてこの一時状態の喪失を許容する。
+///
+/// # 親要素の属性は `new_list_node` が正（イシュー #3755）
+///
+/// 本関数が呼ばれた回、`list_element` 自身の属性は `new_list_node` の
+/// 属性列へ同期される。`data-bind-list`（予約属性）と `new_list_node` が
+/// 持つ属性を除き、ライブ要素に付いている属性は**すべて除去される**
+/// （JS などで後から付けた `aria-live`・class・`data-*` も対象）。
+/// 要素のノード同一性は保たれる（タグ変更時を除く）。意図した挙動で、
+/// SSR hydrate 由来のドリフト収束と REQ-1 の自己修復（イベントハンドラ・
+/// URL・`srcset` の再検証）のために削除判定をライブ属性列挙で行う
+/// （`KeyedListDom::sync_attrs` doc「削除判定の基準」参照）。親要素に要る
+/// 属性は呼び出し元の `view()` 側で `new_list_node` へ含める。
+///
+/// # 項目数・キー長の上限（イシュー #3755）
+///
+/// 項目数は `fandhe_frontend_core::keyed::MAX_KEYED_LIST_ITEMS`（4,096）、
+/// キー長の合計は `MAX_KEYED_LIST_KEY_BYTES` までに制限される。超過は
+/// 呼び出し元の `keyed_list()` 構築時に `Err` となり本関数へ届かない。
+/// 本関数内の上限ゲートは `keyed_list()` を経由しない入力向けの多層防御。
 pub fn apply_keyed_list(
     document: &Document,
     list_element: &Element,
@@ -1760,6 +1779,11 @@ pub fn apply_keyed_list(
 /// `find_list_element`（`data-bind-list` 属性値によるライブ DOM 再
 /// クエリ）で毎 tick 再解決するため、置換後の新コンテナは次回呼び出しで
 /// 自然に見つかる（wasm-full 側の変更は不要）。
+///
+/// 親要素の属性が `new_list_node` に同期され、外部付与属性が除去される
+/// 挙動と、項目数・キー長の上限の扱いは [`apply_keyed_list`] 節
+/// 「親要素の属性は `new_list_node` が正」「項目数・キー長の上限」と同じ
+/// （イシュー #3755）。
 pub fn apply_keyed_list_with_previous(
     document: &Document,
     list_element: &Element,
