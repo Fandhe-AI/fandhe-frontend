@@ -815,8 +815,12 @@ mod wiring {
         classify_interactive_boundary, is_readonly_value_changing_part, ActionRef, AttrSource,
         BoundaryProbe, InteractiveBoundaryClass, ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
     };
+    #[cfg(feature = "action-keydown")]
+    use super::{action_from_keydown, KeyModifiers, KeydownInput, ACTION_KEYDOWN_ATTR};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
+    #[cfg(feature = "action-keydown")]
+    use web_sys::KeyboardEvent;
     use web_sys::{
         Element, Event, EventTarget, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement,
         InputEvent,
@@ -1345,10 +1349,109 @@ mod wiring {
 
         Ok(())
     }
+
+    /// 汎用 keydown 配線（イシュー #3754）。root に keydown の委譲リスナーを 1 つだけ登録する。
+    ///
+    /// `Runtime::wire_keydown` が `Self::wire` の閉包（dispatch -> dirty 検査 -> 差分更新）を
+    /// `on_action` として渡して呼ぶ。属性解釈・キー照合・IME 除外は純粋ロジック層
+    /// （[`action_from_keydown`]）が担い、本関数は DOM の読み取りと `preventDefault()` だけを行う。
+    ///
+    /// # 対象要素
+    ///
+    /// keydown の target はフォーカス中の要素である。`closest("[data-action-keydown]")` で
+    /// target か祖先の属性を探し、root の子孫（root 自身を含む）に限って解釈する。何もフォーカス
+    /// されていないと target は `body` になり no-op になるため、属性はフォーカスされうる要素か
+    /// その祖先に置くこと。click 用の境界ガード（`foreign_action_boundary_between` 等）は
+    /// 再利用しない。入力欄の内側で Esc を受けるのが主用途で、`input` を境界とみなすと
+    /// 目的に反するため。
+    ///
+    /// # 部品専用配線との優先順位
+    ///
+    /// keynav・command・number_input・angle_slider・splitter の keydown リスナーは root の
+    /// bubble フェーズに登録される。同一 target・同一フェーズのリスナーは登録順に動き、
+    /// `stopPropagation` は同一要素上の他リスナーを止めないため、判別には `defaultPrevented`
+    /// だけが使える。そこで本リスナーは `mount`/`hydrate` の最後の配線として登録し（呼び出し側の
+    /// 不変条件）、冒頭で `default_prevented()` が真なら何もしない。部品専用配線が処理して
+    /// `preventDefault` したキーは部品側が優先され、処理しなかったキーを本配線が受け取る。
+    ///
+    /// この規則がカバーしないケース:
+    ///
+    /// - `overlay::OverlayCloseController`（document の keydown）・command の Ctrl/Cmd+K
+    ///   （window）・sidebar の Cmd/Ctrl+B（document）は root の bubble より後に動くため、
+    ///   本配線が先に動く。`preventDefault` は伝播を止めず overlay は `defaultPrevented` を
+    ///   見ないので、汎用の `Escape` に opt-in を付けても overlay の閉鎖は従来どおり働き両方が
+    ///   動く。sidebar は `defaultPrevented` を見るため、opt-in した本配線があると処理を見送る。
+    /// - keynav は Menu・Menubar の Escape で overlay に観測させるため意図的に
+    ///   `preventDefault` を呼ばない。汎用の `Escape` は keynav の後始末と並行して発火する。
+    ///   排他にしたい場合はオーバーレイを内包しない要素に `data-action-keydown` を置く。
+    ///
+    /// # その他の契約
+    ///
+    /// - `preventDefault()` は照合成功かつ `data-keydown-prevent-default` の opt-in があるときだけ、
+    ///   dispatch より前に呼ぶ（dispatch 結果の `UnknownAction`/`Reentrant` には左右されない）。
+    /// - `stopPropagation()` は呼ばない（document/window の配線を壊さないため）。
+    /// - `KeyboardEvent.repeat`（押しっぱなし）は抑止しない（スコープ外）。
+    /// - `Closure::forget` は 1 回に限り、リスナー数を定数に抑える（A04）。
+    ///
+    /// # Errors
+    ///
+    /// `add_event_listener_with_callback` が失敗した場合に `JsValue` を返す。
+    #[cfg(feature = "action-keydown")]
+    pub fn wire_keydown(
+        root: Element,
+        mut on_action: impl FnMut(ActionRef) + 'static,
+    ) -> Result<(), JsValue> {
+        let selector = format!("[{ACTION_KEYDOWN_ATTR}]");
+        let boundary = root.clone();
+        let closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            if event.default_prevented() {
+                return;
+            }
+            let Some(ke) = event.dyn_ref::<KeyboardEvent>() else {
+                return;
+            };
+            let Some(target) = event.target() else {
+                return;
+            };
+            let Some(target) = target.dyn_ref::<Element>() else {
+                return;
+            };
+            let Ok(Some(matched)) = target.closest(&selector) else {
+                return;
+            };
+            if !boundary.contains(Some(&matched)) {
+                return;
+            }
+            let key = ke.key();
+            let input = KeydownInput {
+                key: &key,
+                modifiers: KeyModifiers {
+                    ctrl: ke.ctrl_key(),
+                    alt: ke.alt_key(),
+                    shift: ke.shift_key(),
+                    meta: ke.meta_key(),
+                },
+                is_composing: ke.is_composing(),
+                key_code: ke.key_code(),
+            };
+            let Some(keydown) = action_from_keydown(&ElementAttrSource(&matched), &input) else {
+                return;
+            };
+            if keydown.prevent_default {
+                event.prevent_default();
+            }
+            on_action(keydown.action_ref);
+        });
+        root.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+        Ok(())
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
 pub use wiring::wire_events;
+#[cfg(all(target_arch = "wasm32", feature = "action-keydown"))]
+pub use wiring::wire_keydown;
 
 #[cfg(test)]
 mod tests {

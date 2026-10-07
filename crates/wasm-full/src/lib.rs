@@ -226,6 +226,7 @@
 //! | `Runtime::wire_text_animation` | `text-animation` |
 //! | `Runtime::wire_cursor` | `cursor` |
 //! | `Runtime::wire_count_up` | `count-up` |
+//! | `Runtime::wire_keydown` | `action-keydown` |
 //!
 //! [`overlay`]/[`tooltip`]/[`position`]/[`focus_trap`]/[`headless_file_upload`]/
 //! [`headless_select`] は `Runtime` を経由しないアプリ側直接利用 API のため
@@ -2143,6 +2144,16 @@ where
         Self::wire_cursor(root.clone())?;
         #[cfg(feature = "count-up")]
         Self::wire_count_up(root.clone())?;
+        // 汎用 keydown 配線は必ず最後に登録する。部品専用の keydown リスナー
+        // （keynav 等）が先に動いて `preventDefault` したキーを `defaultPrevented`
+        // で観測して譲るため（優先順位の規則、`events::wire_keydown` の rustdoc、#3754）。
+        #[cfg(feature = "action-keydown")]
+        Self::wire_keydown(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -2358,6 +2369,16 @@ where
         Self::wire_cursor(root.clone())?;
         #[cfg(feature = "count-up")]
         Self::wire_count_up(root.clone())?;
+        // 汎用 keydown 配線は必ず最後に登録する。部品専用の keydown リスナー
+        // （keynav 等）が先に動いて `preventDefault` したキーを `defaultPrevented`
+        // で観測して譲るため（優先順位の規則、`events::wire_keydown` の rustdoc、#3754）。
+        #[cfg(feature = "action-keydown")]
+        Self::wire_keydown(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -3449,6 +3470,32 @@ where
     #[cfg(feature = "count-up")]
     fn wire_count_up(root: web_sys::Element) -> Result<(), wasm_bindgen::JsValue> {
         count_up::wire_count_up(&root)
+    }
+
+    /// 汎用 keydown 配線（[`events::wire_keydown`]、イシュー #3754）を登録する。
+    ///
+    /// `Self::wire` の閉包を渡すので、dispatch -> `dirty_fields()` -> 差分更新の経路は
+    /// click/input と同一（再入・未知 action は no-op）。`mount`/`hydrate` の**最後の配線**として
+    /// 呼ぶこと（部品専用 keydown が `preventDefault` したキーに譲る優先順位の不変条件）。
+    ///
+    /// # Errors
+    ///
+    /// リスナー登録に失敗した場合に `JsValue` を返す。
+    #[cfg(feature = "action-keydown")]
+    fn wire_keydown(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        events::wire_keydown(
+            root.clone(),
+            Self::wire(component, root, binding_table, keyed_list_cache),
+        )
     }
 
     /// carousel のドラッグ + spring スナップ配線
