@@ -1490,7 +1490,9 @@ mod wiring {
                 shift: input.modifiers.shift,
                 meta: input.modifiers.meta,
             };
-            if crate::keydown_claim::claims(&claim_input) {
+            // 先に登録された別リスナーが `stopPropagation()` 済みなら、document/window の
+            // 部品ハンドラにはイベントが届かない。消費述語を信用せず汎用処理へ進める。
+            if !event.cancel_bubble() && crate::keydown_claim::claims(&claim_input) {
                 return;
             }
             if keydown.prevent_default {

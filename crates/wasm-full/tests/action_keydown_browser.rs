@@ -730,6 +730,42 @@ fn command_ctrl_k_without_dialog_or_when_disabled_falls_back_to_generic_action()
     assert_eq!(g.runtime.component().draft, "Control+k");
 }
 
+/// 同じ root に先に登録された別リスナーが `stopPropagation()` 済みなら、document/window の
+/// 部品ハンドラには届かない。消費述語が真でも汎用 action へ進む（従来挙動の維持）。
+#[wasm_bindgen_test]
+fn stop_propagation_before_generic_keydown_skips_claim_and_runs_generic_action() {
+    let id = "keydown-claim-stopped-root";
+    let document = current_document();
+    let placeholder = create_placeholder(&document, id);
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    // `Runtime::mount` の汎用 keydown リスナーより先に root へ登録する。
+    let stopper = Closure::<dyn FnMut(Event)>::new(|event: Event| event.stop_propagation());
+    placeholder
+        .add_event_listener_with_callback("keydown", stopper.as_ref().unchecked_ref())
+        .unwrap();
+    let runtime = Runtime::mount(id, AppState::new()).expect("mount must succeed");
+    let input = placeholder.query_selector("#draft-input").unwrap().unwrap();
+    declare(&input, "set_draft", "Control+k");
+    let f = Fixture {
+        placeholder: placeholder.clone(),
+        _cleanup: RemoveOnDrop(placeholder.clone()),
+        runtime,
+        input,
+    };
+    let log = mount_command_in(&f, false, true);
+
+    press(&f.input, "k", ctrl());
+    assert!(
+        log.borrow().is_empty(),
+        "document handler never receives it"
+    );
+    assert_eq!(
+        f.runtime.component().draft,
+        "Control+k",
+        "generic action runs"
+    );
+}
+
 #[wasm_bindgen_test]
 fn unclaimed_keys_still_reach_generic_action_with_components_wired() {
     let f = mount_fixture("keydown-claim-regression-root");

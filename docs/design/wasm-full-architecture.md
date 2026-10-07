@@ -3293,8 +3293,8 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 
 - 登録簿は `crates/wasm-full/src/keydown_claim.rs`（`pub(crate)`、feature `action-keydown` に従属、
   web-sys 非依存で native テスト可能）。`register`/`unregister`/`claims` と
-  `Verdict { Consumes, Passes, Gone }` を持ち、`claims` は借用を解放してから述語を呼ぶ
-  （再入しても panic しない）。`Gone` を返した登録は次の問い合わせで自動除去する。
+  `Verdict { Consumes, Passes }` を持ち、`claims` は借用を解放してから述語を呼ぶ
+  （再入しても panic しない）。登録の解除は `unregister` のみで行い、自動除去はしない。
 - `events::wiring::wire_keydown` は `action_from_keydown` が `Some` の後、`preventDefault` と
   dispatch の前に `claims` を参照する。`None`（IME 変換中・不一致）の場合は登録簿を見ない。
 - overlay は純粋関数 `overlay_consumes_keydown`（`escape_close_index` を再利用）を
@@ -3303,7 +3303,11 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
   tooltip）と `is_toggle_shortcut`・trigger/rail 解決を `wire_keydown` で root ごとに登録する。
   command は `is_document_toggle`（`is_toggle_shortcut` + Shift 除外）と `toggle_target`
   （dialog・インスタンス解決・無効化契約）を `wire_command_events` で登録する。
-  どちらも `root.is_connected()` が偽なら `Gone` を返す。
+  どちらも `root.is_connected()` が偽の間は `Passes` を返して判定を見送り（登録は保持する）、
+  再挿入されれば判定を再開する。解除は `unregister` による。
+- `wire_keydown` は `event.cancel_bubble()` が真（root 上で先に動いた別リスナーが
+  `stopPropagation()` 済み）のとき、document/window の部品ハンドラには届かないため消費述語を
+  参照せず汎用処理へ進む。
 - 検証: `keydown_claim.rs`・`overlay.rs`・`sidebar.rs`・`command.rs` の native テストと、
   `action_keydown_browser.rs` の排他ケース（部品のみ発火・汎用のみ発火の双方）。
 
