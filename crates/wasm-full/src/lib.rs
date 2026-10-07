@@ -584,6 +584,18 @@ pub fn dispatch_and_render_headless<C: Component>(
     component.view()
 }
 
+/// [`Runtime::dispatch_action`] の結果（イシュー #3751）。DOM 非依存のため
+/// native からも参照できる（ゲートしない）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchOutcome {
+    /// action が受理され `update` が呼ばれた（dirty が空で DOM 更新がなくてもこれ）。
+    Dispatched,
+    /// 未知 action または不正 payload。状態も DOM も変更しない。
+    UnknownAction,
+    /// `component` の借用が取れず（再入）、状態も DOM も変更しなかった。
+    Reentrant,
+}
+
 /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
 /// `keyed_list_cache` へ反映する共通処理の DOM 非依存な判定・分岐本体
 /// （呼び出し元は `Runtime::commit_keyed_list_result`、イシュー #1381
@@ -985,20 +997,104 @@ where
         >,
     ) -> impl FnMut(events::ActionRef) + 'static {
         move |action_ref: events::ActionRef| {
-            let Ok(mut state) = component.try_borrow_mut() else {
-                return;
-            };
-            let dispatched = fandhe_frontend_interactive::dispatch(
-                &mut *state,
+            let _ = Self::dispatch_and_apply(
+                &component,
+                &root,
+                &binding_table,
+                &keyed_list_cache,
                 &action_ref.action,
                 &action_ref.payload,
             );
-            if !dispatched {
-                return;
-            }
-
-            Self::apply_dirty_if_any(&state, &root, &binding_table, &keyed_list_cache);
         }
+    }
+
+    /// `Self::wire` の閉包と [`Self::dispatch_action`] が共有する
+    /// 「dispatch -> dirty 検査 -> 差分更新」の本体（イシュー #3751）。
+    ///
+    /// `component.try_borrow_mut()` を最初に試み、失敗（再入）なら状態にも
+    /// DOM にも触れず [`DispatchOutcome::Reentrant`] を返す。未知 action は
+    /// [`DispatchOutcome::UnknownAction`]（安全側 no-op）。成功時のみ
+    /// [`Self::apply_dirty_if_any`] で束縛点・keyed list を差分更新する。
+    fn dispatch_and_apply(
+        component: &std::rc::Rc<std::cell::RefCell<C>>,
+        root: &web_sys::Element,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+        name: &str,
+        payload: &str,
+    ) -> DispatchOutcome {
+        let Ok(mut state) = component.try_borrow_mut() else {
+            return DispatchOutcome::Reentrant;
+        };
+        if !fandhe_frontend_interactive::dispatch(&mut *state, name, payload) {
+            return DispatchOutcome::UnknownAction;
+        }
+        Self::apply_dirty_if_any(&state, root, binding_table, keyed_list_cache);
+        DispatchOutcome::Dispatched
+    }
+
+    /// DOM イベントを経由せず、アプリから action を dispatch して
+    /// `data-action` 経路と同じ差分更新（束縛点の text・属性・class と
+    /// keyed list）を当てる公開 API（イシュー #3751）。
+    ///
+    /// [`Self::rerender`] と異なり `root` 配下を全置換しないため、フォーカス・
+    /// IME・入力途中の値・要素の参照が保たれる。タイマー、`postMessage`、
+    /// `storage` イベント等、DOM イベント以外の入力を `Component` へ届ける用途を想定する。
+    ///
+    /// # 戻り値
+    ///
+    /// - [`DispatchOutcome::Dispatched`]: action が受理され `update` が呼ばれた
+    /// - [`DispatchOutcome::UnknownAction`]: 未知 action / 不正 payload。状態も DOM も不変
+    /// - [`DispatchOutcome::Reentrant`]: `component` の借用が取れず何もしなかった
+    ///
+    /// # 再入時の扱い
+    ///
+    /// `Self::wire` 系の配線コールバック内、`Component::update` 内、
+    /// [`Self::component`] の `Ref` を保持している間、[`Self::rerender`] の
+    /// 実行中は `Reentrant` を返して no-op とする（panic しない）。action は
+    /// 保留もキューイングもされず捨てられるため、反映したい場合は呼び出し側が
+    /// `setTimeout` 等でコールバックの外へ逃がすこと。
+    ///
+    /// # セキュリティ
+    ///
+    /// `payload` は `data-payload` と同じく信頼できない入力として
+    /// `Component::decode_action` へ渡されるだけで、DOM 反映は既存の
+    /// 既定エスケープ済み経路のみを通る（エスケープ迂回経路は作らない）。
+    ///
+    /// # Examples
+    ///
+    /// `Runtime` は wasm32 限定で native の doctest がコンパイルできないため
+    /// `ignore` とする。
+    ///
+    /// ```ignore
+    /// thread_local! {
+    ///     static RUNTIME: std::cell::RefCell<Option<Runtime<App>>> =
+    ///         std::cell::RefCell::new(None);
+    /// }
+    ///
+    /// // setTimeout の Closure から呼ぶ。
+    /// let tick = Closure::<dyn FnMut()>::new(|| {
+    ///     RUNTIME.with(|r| {
+    ///         if let Some(rt) = r.borrow().as_ref() {
+    ///             // Reentrant なら何もしない（次の tick で再試行できる）。
+    ///             let _ = rt.dispatch_action("tick", "");
+    ///         }
+    ///     });
+    /// });
+    /// ```
+    pub fn dispatch_action(&self, name: &str, payload: &str) -> DispatchOutcome {
+        Self::dispatch_and_apply(
+            &self.component,
+            &self.root,
+            &self.binding_table,
+            &self.keyed_list_cache,
+            name,
+            payload,
+        )
     }
 
     /// dispatch 成功後、`state.dirty_fields()` が非空のときのみ
@@ -3435,6 +3531,9 @@ where
     /// `root` へ 1 回だけ登録され `closest`/`contains` ベースで都度探索する
     /// ため、本メソッドで `root` 配下が丸ごと入れ替わっても再配線は不要
     /// である。
+    ///
+    /// `root` 配下を全置換せずに action だけを当てたい場合（フォーカス・IME を
+    /// 保ちたいとき）は [`Self::dispatch_action`] を使うこと。
     ///
     /// `component`/`root` の借用に失敗した場合（イベントハンドラ内からの
     /// 再入等）は no-op とする（`.claude/rules/coding-rust.md`、panic しない
