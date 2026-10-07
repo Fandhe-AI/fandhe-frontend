@@ -656,6 +656,19 @@ fn sidebar_escape_on_open_mobile_drawer_is_exclusive_but_closed_drawer_is_not() 
     assert_eq!(f.runtime.component().draft, "Escape", "generic takes over");
 }
 
+#[wasm_bindgen_test]
+fn sidebar_escape_on_open_drawer_with_disabled_trigger_falls_back_to_generic_action() {
+    let f = mount_fixture("keydown-claim-sidebar-escape-disabled-root");
+    declare(&f.input, "set_draft", "Escape");
+    let (provider, clicks) = mount_sidebar_in(&f, "(min-width: 1px)", true);
+
+    provider.set_attribute("data-mobile", "").unwrap();
+    provider.set_attribute("data-state", "expanded").unwrap();
+    press(&f.input, "Escape", plain());
+    assert_eq!(clicks.get(), 0, "disabled trigger cannot dismiss");
+    assert_eq!(f.runtime.component().draft, "Escape", "generic takes over");
+}
+
 /// root 内へ command（root > dialog）を足して配線し、dispatch された action 名の記録を返す。
 fn mount_command_in(
     f: &Fixture,

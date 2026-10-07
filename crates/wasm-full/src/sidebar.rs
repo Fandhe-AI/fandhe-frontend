@@ -705,16 +705,20 @@ mod wiring {
     /// 戻り値は click を合成できたかどうか（呼び出し側は結果を無視してよい
     /// 場面が多いが、テストの検証容易性のため公開する）。
     fn click_trigger_or_rail(root: &Element) -> bool {
-        let target = find_first_enabled(root, TRIGGER_SELECTOR)
-            .or_else(|| find_first_enabled(root, RAIL_SELECTOR));
-        let Some(target) = target else {
-            return false;
-        };
-        let Some(html) = target.dyn_ref::<HtmlElement>() else {
+        let Some(html) = clickable_trigger_or_rail(root) else {
             return false;
         };
         html.click();
         true
+    }
+
+    /// [`click_trigger_or_rail`] が合成 click を送る対象（有効な trigger、無ければ rail の
+    /// `HtmlElement`）を解決する。汎用 keydown 配線との排他判定（イシュー #3768）が
+    /// 実処理と同じ解決を使うために共有する。
+    fn clickable_trigger_or_rail(root: &Element) -> Option<HtmlElement> {
+        find_first_enabled(root, TRIGGER_SELECTOR)
+            .or_else(|| find_first_enabled(root, RAIL_SELECTOR))
+            .and_then(|target| target.dyn_into::<HtmlElement>().ok())
     }
 
     /// document keydown 委譲ハンドラ。Escape（モバイル drawer 閉鎖）と
@@ -1777,16 +1781,14 @@ mod wiring {
                         should_dismiss_mobile_drawer(
                             provider.has_attribute("data-mobile"),
                             provider.get_attribute("data-state").as_deref(),
-                        )
+                        ) && clickable_trigger_or_rail(provider).is_some()
                     });
                     super::sidebar_consumes_escape(
                         dismiss,
                         has_open_menu_button_tooltip(&claim_root),
                     )
                 } else if is_toggle_shortcut(input.key, input.ctrl, input.meta, input.alt, false) {
-                    find_first_enabled(&claim_root, TRIGGER_SELECTOR)
-                        .or_else(|| find_first_enabled(&claim_root, RAIL_SELECTOR))
-                        .is_some_and(|target| target.dyn_ref::<HtmlElement>().is_some())
+                    clickable_trigger_or_rail(&claim_root).is_some()
                 } else {
                     false
                 };
