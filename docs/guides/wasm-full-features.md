@@ -1,7 +1,7 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 25 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 26 件・
 scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
@@ -72,6 +72,7 @@ scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
 | `Runtime::wire_magnetic` | `magnetic` |
 | `Runtime::wire_carousel_motion` | `carousel-motion` |
 | `Runtime::wire_count_up` | `count-up` |
+| `Runtime::wire_keydown` | `action-keydown` |
 | `Runtime::wire_text_animation` | `text-animation` |
 | `Runtime::wire_ticker` | `ticker` |
 | `Runtime::wire_cursor` | `cursor` |
@@ -106,6 +107,15 @@ prefix/suffix）を保存したまま数値部分だけを補間する
 count-up-trigger="in-view"`）・`MutationObserver` による外部更新の再補間
 起動のみを担います（`crates/wasm-full/src/count_up.rs` モジュール doc
 参照）。
+
+`action-keydown` feature（0.43.0 で追加、イシュー #3754）は追加依存を持たない
+配線群で、`data-action-keydown`（action 名）・`data-keys`（対象キー）を持つ要素
+（またはその祖先）で押されたキーを `Component` の action として dispatch します。
+`Runtime::mount`/`hydrate` の最後の配線として登録されるため、部品専用の keydown
+配線が `preventDefault` したキーはそちらが優先されます。`preventDefault()` は
+`data-keydown-prevent-default` の opt-in があるときだけ呼びます。IME 変換中は
+action になりません。詳細は `docs/design/wasm-full-architecture.md` §41 を参照して
+ください。
 
 `text-animation` feature（0.35.0 で追加、イシュー #2532）は `scroll-driver`/
 `confetti`/`hold-to-confirm`/`magnetic` と同型（配線群かつ
@@ -405,17 +415,18 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
 | 0.40.3 | PR #2582 で origin/main（#2536 の `shared_layout`〔`layout-animation` feature 配下、feature 追加なし〕統合で 0.40.2 到達）を再取り込み。本 PR 側も 0.40.2 のため同一版数の衝突として #638 条項に従い +1 して 0.40.3 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.16.3 へ追随した |
 | 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
+| 0.43.0 | `action-keydown` feature（イシュー #3754）。汎用 keydown 配線を `Runtime::mount`/`hydrate` に追加 |
 | 0.40.4 | PR #2582 で origin/main（#2539 の `count-up` feature 統合で 0.40.3 到達）を再取り込み。本 PR 側も 0.40.3 のため同一版数の衝突として #638 条項に従い +1 して 0.40.4 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.1 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 56 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 57 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.40.4"
+version = "0.43.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -449,6 +460,7 @@ features = [
   "text-animation",
   "cursor",
   "count-up",
+  "action-keydown",
   "position",
   "stagger",
   "animation-driver",

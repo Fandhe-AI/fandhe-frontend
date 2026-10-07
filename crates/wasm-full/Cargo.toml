@@ -1398,7 +1398,14 @@ name = "fandhe-frontend-wasm-full"
 # 到達していたため、#638 条項の「同一版数も衝突として +1」運用に従い
 # 0.40.4 とする。`fandhe-frontend-animation` の依存 `version` 要求は統合
 # バンプ値 0.17.1 へ追随する。
-version = "0.40.4"
+#
+# イシュー #3751: `Runtime::dispatch_action` / `DispatchOutcome` の新規公開 API
+# 追加のため minor バンプ（0.40.4 → 0.41.0）。
+# イシュー #3753: 汎用 keydown 属性契約の純粋ロジック（`events.rs` の公開 API 追加）の
+# ため minor バンプ（0.41.0 → 0.42.0）。
+# イシュー #3754: 汎用 keydown 配線（`Runtime::wire_keydown`・feature `action-keydown`）
+# の新規公開 API 追加のため minor バンプ（0.42.0 → 0.43.0）。
+version = "0.43.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1996,6 +2003,7 @@ default = [
   "text-animation",
   "cursor",
   "count-up",
+  "action-keydown",
   "position",
   "stagger",
   "animation-driver",
@@ -2182,6 +2190,10 @@ cursor = ["dep:fandhe-frontend-animation"]
 # （`fandhe-frontend-animation::count_up` の型を直接使うため、`gesture` 等の
 # feature 非依存モジュールとは異なり本 feature でのみコンパイルする）。
 count-up = ["dep:fandhe-frontend-animation"]
+# イシュー #3754（親 #3752）: 汎用 keydown 配線（`Runtime::mount`/`hydrate` の
+# `Self::wire_keydown` 呼び出し、属性 `data-action-keydown`）専用の feature（既定 on）。
+# 追加依存なし。`dist-server` の最小配布構成（`WASM_DIST_FEATURES`）には含めない。
+action-keydown = []
 # イシュー #2209（親 #2208）: `headless::wire_headless_component` 内の
 # 自動 positioning 呼び出し（`ensure_global_controller`・
 # `reposition_within`）専用の feature。`position` モジュール自体・

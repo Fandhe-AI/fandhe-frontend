@@ -109,7 +109,8 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `nav::resolve_route_view_with` | `pub fn resolve_route_view_with<L, D>(list_loader: &L, detail_loader: &D, route: &ClientRoute) -> (&'static str, fandhe_frontend_core::Node) where L: fandhe_frontend_app::Loader<Input = (), Output = Vec<fandhe_frontend_app::Item>>, D: fandhe_frontend_app::Loader<Input = String, Output = Option<fandhe_frontend_app::Item>>`（本体はイシュー #374、タイトルはイシュー #407 で `fandhe_frontend_app::routes::title` へ委譲） | ルートを「タイトル + 描画済み Node」へ変換する。`crates/server/src/ssr.rs::respond_with` と同じ分岐構造・同一タイトル（`fandhe_frontend_app::routes::title` の単一定義）を使い、`csr::resolve_list_node`/`resolve_detail_node` を呼ぶ（fail-closed をそのまま継承） |
 | `nav::start_router` | `pub fn start_router(root_id: &str) -> Result<(), JsValue>`（wasm32 限定、本体はイシュー #374） | クライアント側ルーティングの起動配線。`document` レベルで `click`（`data-nav` 委譲）・`window` レベルで `popstate` を各 1 回だけ登録する。**起動時点では描画を行わない**（初期表示で loader を再実行しない凍結事項の遵守） |
 | `entry::start_router` | `#[wasm_bindgen] pub fn start_router(root_id: &str) -> Result<(), JsValue>`（本体はイシュー #374） | `nav::start_router` を呼ぶ薄い `#[wasm_bindgen]` エクスポート（`mount`/`hydrate` と同型の参照実装）。`RUNTIME`（`AppState` 状態管理）とは独立した別系統 |
-| `Runtime::rerender` | `pub fn rerender(&self)`（本体はイシュー #1120） | `root` サブツリーを現在の `component.view()` から丸ごと構築し直す構造フォールバック（§21 参照）を能動的に呼び出す公開 API。`Self::wire`/`Self::wire_signature_pad` が dirty field 検知経由で内部的に呼ぶのと同じ実装（`Self::rerender_subtree`）を、アプリ側から画面遷移等のタイミングで明示発動したい場合に使う。`component`/`root` の借用に失敗する場合（イベントハンドラ内からの再入等）は no-op（panic しない） |
+| `Runtime::rerender` | `pub fn rerender(&self)`（本体はイシュー #1120） | `root` サブツリーを現在の `component.view()` から丸ごと構築し直す構造フォールバック（§21 参照）を能動的に呼び出す公開 API。`Self::wire`/`Self::wire_signature_pad` が dirty field 検知経由で内部的に呼ぶのと同じ実装（`Self::rerender_subtree`）を、アプリ側から画面遷移等のタイミングで明示発動したい場合に使う。`component`/`root` の借用に失敗する場合（イベントハンドラ内からの再入等）は no-op（panic しない）。全置換を避けたい場合は `Runtime::dispatch_action` を使う |
+| `Runtime::dispatch_action` | `pub fn dispatch_action(&self, name: &str, payload: &str) -> DispatchOutcome`（本体はイシュー #3751） | DOM イベントを経由せず外部から action を dispatch し、`data-action` 経路と同じ差分更新（束縛点・keyed list）を当てる。更新が束縛点・keyed list に対応する dirty field に限られる場合は、`rerender` と違い root 配下を全置換しないためフォーカス・IME・要素参照が保たれる。束縛点にも keyed list にも対応しない dirty field を更新する action では `data-action` 経路と同じ構造フォールバック（`rerender_subtree`）が働き全置換になるため、保持は保証されない。戻り値 `DispatchOutcome`（`Dispatched` / `UnknownAction` / `Reentrant`）。`component` の借用が取れない再入時は `Reentrant` を返して no-op（キューイングしない、panic しない） |
 
 ### 3.3 設計方針の要点（2 層構成）
 
@@ -3064,3 +3065,92 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 --headless --chrome`、ソート巡回・改ざん検知・列表示切替・
 `indeterminate` 同期・ページング境界・link モード無視・複数インスタンス
 独立性・`Runtime::hydrate` 統合）の 3 層で検証する。
+
+## 40. 汎用 keydown 属性契約の純粋ロジック（イシュー #3753、親 #3752）
+
+アプリ固有のキー操作を `Component` の action として受け取る宣言的な口の
+うち、web-sys に依存しない純粋ロジック層を `crates/wasm-full/src/events.rs`
+に追加した。リスナー登録・`closest("[data-action-keydown]")` による祖先探索・
+`preventDefault()` の実呼び出し・部品専用配線との優先順位・feature 新設は
+#3754 で扱う（本節の範囲外。§41 参照）。
+
+### 40.1 属性契約
+
+| 属性 | 役割 |
+|------|------|
+| `data-action-keydown` | action 名。無い・空文字列は不正（誤発火回避のため `data-action` と異なり空を受け付けない） |
+| `data-keys` | 対象キー。必須（ワイルドカードは提供しない） |
+| `data-keydown-prevent-default` | 空文字列または `true` のときだけ preventDefault を opt-in |
+
+### 40.2 `data-keys` の文法と照合
+
+- ASCII 空白区切りのトークン列。各トークンは `[修飾キー+]*キー名`（`aria-keyshortcuts` 風）
+- 修飾キーは `Control` / `Alt` / `Shift` / `Meta`（大文字小文字区別、別名なし）
+- キー名は `KeyboardEvent.key` と完全一致。例外の別名は `Space`（`" "`）と `Plus`（`"+"`）
+- 修飾キー集合は完全一致で比べる（Shift 含む）。`Shift+a` は `key == "A"` と一致しないため `Shift+A` と書く
+- 不正値（空・空セグメント・未知/重複の修飾キー・制御文字・長さ/トークン数/全長の上限超過）は属性全体を不正とし、部分採用しない（fail-closed）
+
+### 40.3 IME 変換中の除外と payload
+
+`isComposing || keyCode == 229` の keydown は属性解釈より前に action にしない
+（`command.rs`・`number_input.rs` と同じ安全網）。payload は照合成功後に
+`Control+Alt+Shift+Meta` の固定順の正規トークン（例: `Control+Shift+Enter`、
+`Space`、`Plus`）として組み立てる。
+
+### 40.4 semver・テスト
+
+公開 API の純追加のため minor バンプ（0.41.0 → 0.42.0）。テストは
+`events.rs` 内単体テストと `crates/wasm-full/tests/keydown_native.rs`
+（native、一致・不一致・修飾キー・IME・不正値・preventDefault opt-in）で検証する。
+
+## 41. 汎用 keydown 配線の配線層（イシュー #3754、親 #3752）
+
+§40 の純粋ロジックを `Runtime::mount`/`hydrate` へ接続する配線層。実装は
+`events::wire_keydown`（`crates/wasm-full/src/events.rs`）と private な
+`Runtime::wire_keydown`（`lib.rs`）で、feature `action-keydown`（既定 on、追加依存なし）
+でゲートする。
+
+### 41.1 リスナーと対象要素
+
+- root に keydown の委譲リスナーを 1 つだけ登録する（`Closure::forget` も 1 回）。
+- keydown の target はフォーカス中の要素。`closest("[data-action-keydown]")` で target か
+  祖先を探し、`root.contains` で root 内に限る。何もフォーカスされていない場合
+  （target が `body`）は no-op。
+- click 用の境界ガード（`foreign_action_boundary_between` 等）は再利用しない。入力欄の
+  内側で Esc を受けるのが主用途で、`input` を境界とみなすと目的に反するため。
+- `Self::wire` の閉包に流すので、dispatch -> `dirty_fields()` -> `apply_update_for_dirty`
+  の経路は click/input と同一（再入・未知 action は no-op）。
+
+### 41.2 preventDefault の時機
+
+照合成功かつ `data-keydown-prevent-default` の opt-in があるときだけ、dispatch より前に
+`preventDefault()` を呼ぶ。dispatch 結果には左右されない。`stopPropagation()` は呼ばない。
+
+### 41.3 部品専用配線との優先順位
+
+部品専用の keydown（keynav・command・number_input・angle_slider・splitter）は root の
+bubble フェーズにあり、同一 target・同一フェーズのリスナーは登録順に動く。
+`stopPropagation` は同一要素上の他リスナーを止めないため、判別に使えるのは
+`defaultPrevented` だけである（sidebar と同じ考え方）。
+
+規則: 汎用リスナーは `mount`/`hydrate` の**最後の配線**として登録し、冒頭で
+`default_prevented()` が真なら何もしない。部品が処理して `preventDefault` したキーは部品が
+優先され、処理しなかったキーを汎用配線が受け取る。
+
+規則がカバーしないケース:
+
+1. overlay の Escape（document）・command の Ctrl/Cmd+K（window）・sidebar の Cmd/Ctrl+B
+   （document）は root の bubble より後に動くため、汎用配線が先に動く。overlay は
+   `defaultPrevented` を見ないので、汎用の `Escape` に opt-in を付けても overlay の閉鎖は
+   従来どおり働き両方が動く。sidebar は見るため、opt-in した汎用配線があると処理を見送る。
+2. keynav は Menu・Menubar の Escape で overlay に観測させるため意図的に `preventDefault`
+   しない。汎用の `Escape` は keynav の後始末と並行して発火する。排他にしたい場合は
+   オーバーレイを内包しない要素に `data-action-keydown` を置く。
+
+### 41.4 feature・semver・テスト
+
+- `dist-server` の最小配布構成（`WASM_DIST_FEATURES`）には加えない（bundle_size 不変）。
+- 公開 API の純追加のため minor バンプ（0.42.0 → 0.43.0）。
+- `crates/wasm-full/tests/action_keydown_browser.rs`（一致時の差分更新と要素の同一性、keyed list、
+  不一致キー、IME 除外、preventDefault の opt-in、優先順位、root 外、hydrate 経路、XSS）で検証する。
+- 対象外: `KeyboardEvent.repeat` の抑止、`data-payload` との合成。
