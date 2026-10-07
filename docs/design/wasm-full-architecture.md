@@ -3081,6 +3081,7 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 | `data-action-keydown` | action 名。無い・空文字列は不正（誤発火回避のため `data-action` と異なり空を受け付けない） |
 | `data-keys` | 対象キー。必須（ワイルドカードは提供しない） |
 | `data-keydown-prevent-default` | 空文字列または `true` のときだけ preventDefault を opt-in |
+| `data-keydown-ignore-repeat` | 空文字列または `true` のときだけ、自動リピート（`KeyboardEvent.repeat`）の dispatch 抑止を opt-in（イシュー #3763、§40.5） |
 
 ### 40.2 `data-keys` の文法と照合
 
@@ -3096,6 +3097,20 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 （`command.rs`・`number_input.rs` と同じ安全網）。payload は照合成功後に
 `Control+Alt+Shift+Meta` の固定順の正規トークン（例: `Control+Shift+Enter`、
 `Space`、`Plus`）として組み立てる。
+
+### 40.5 自動リピートの抑止（イシュー #3763、親 #3762）
+
+- 属性名は `data-keydown-ignore-repeat`。当初候補の `data-keydown-repeat` は、付けると抑止される属性なのに
+  値が repeat を許可するように読めるため避けた。`data-keydown-prevent-default` と同じ「`data-keydown-` + 動詞句」に揃える。
+- 値の文法は `data-keydown-prevent-default` と同一（空文字列または `true` のみ有効、`false` を含む他は無効）。
+  属性なしの挙動は従来どおり（repeat でも dispatch する）。
+- 判定は `data-keys` の一致が確定した後に行う。`KeydownInput.repeat` が真かつ opt-in 済みのとき
+  `KeydownAction.repeat_suppressed` が真になる。最初の keydown（`repeat == false`）は常に通る。
+- 抑止時も `data-keydown-prevent-default` の opt-in があれば `preventDefault()` は維持する。
+  最初の 1 回だけ preventDefault して repeat で素通りさせると、押しっぱなしで既定動作
+  （Space のスクロール等）が漏れるため。抑止するのは dispatch のみである。
+- 公開 API の追加（`KeydownInput.repeat`・`KeydownAction.repeat_suppressed` の pub フィールド追加は構築側を壊す）のため
+  minor バンプ（0.43.0 → 0.44.0）。
 
 ### 40.4 semver・テスト
 
@@ -3156,7 +3171,9 @@ bubble フェーズにあり、同一 target・同一フェーズのリスナー
 - 公開 API の純追加のため minor バンプ（0.42.0 → 0.43.0）。
 - `crates/wasm-full/tests/action_keydown_browser.rs`（一致時の差分更新と要素の同一性、keyed list、
   不一致キー、IME 除外、preventDefault の opt-in、優先順位、root 外、hydrate 経路、XSS）で検証する。
-- 対象外: `KeyboardEvent.repeat` の抑止、`data-payload` との合成。
+- `KeyboardEvent.repeat` の抑止は `data-keydown-ignore-repeat` の opt-in で対応済み（§40.5、0.44.0）。
+  配線層は preventDefault → `repeat_suppressed` なら return → `on_action` の順に処理する。
+- 対象外: `data-payload` との合成。
 
 ### 41.5 document/window の部品配線との排他方式（イシュー #3767、実装は #3768）
 
@@ -3242,4 +3259,4 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 - 純粋層は native 単体テスト、overlay Escape・sidebar Cmd/Ctrl+B・command Ctrl/Cmd+K の「片方のみ
   発火」は `action_keydown_browser.rs` に追加する。既存の keynav/overlay/sidebar/command の
   ブラウザ試験は無改変で通ること。
-- 対象外: `KeyboardEvent.repeat` の抑止、打ち消し用 opt-in 属性。
+- 対象外: 打ち消し用 opt-in 属性。

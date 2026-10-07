@@ -38,7 +38,7 @@
 //! # keydown 属性契約（イシュー #3753、親 #3752）
 //!
 //! `data-action-keydown`（action 名）・`data-keys`（対象キー）・
-//! `data-keydown-prevent-default`（opt-in）の解釈、キー絞り込み、IME 変換中の除外、
+//! `data-keydown-prevent-default`・`data-keydown-ignore-repeat`（いずれも opt-in）の解釈、キー絞り込み、IME 変換中の除外、
 //! payload 書式は web-sys 非依存の純粋関数（[`action_from_keydown`] ほか）として本モジュールに置く。
 //! リスナー登録・祖先探索・`preventDefault()` の実呼び出し・部品専用配線との優先順位・
 //! feature は #3754 の配線層で扱う。
@@ -582,6 +582,14 @@ pub const KEYS_ATTR: &str = "data-keys";
 /// 適用対象は照合に成功した keydown のみ。実際の呼び出しは #3754 の配線層が担う。
 pub const KEYDOWN_PREVENT_DEFAULT_ATTR: &str = "data-keydown-prevent-default";
 
+/// 自動リピート抑止の opt-in 属性（`data-keydown-ignore-repeat`、イシュー #3763）。
+///
+/// 値が空文字列または `"true"` のときだけ有効（[`ignore_repeat_from_attr`]）。
+/// 押しっぱなしで発生する `KeyboardEvent.repeat == true` の 2 回目以降の keydown だけを
+/// dispatch の対象から外し、最初の keydown は常に通す。抑止中も `data-keydown-prevent-default` の
+/// opt-in があれば `preventDefault()` は維持する（既定動作の漏れを防ぐため。抑止するのは dispatch のみ）。
+pub const KEYDOWN_IGNORE_REPEAT_ATTR: &str = "data-keydown-ignore-repeat";
+
 /// `data-keys` 全体の最大バイト長。属性値の処理コストを一定以内に抑える（DoS 対策）。
 pub const MAX_KEYS_ATTR_LEN: usize = 512;
 /// `data-keys` のトークン数の上限。
@@ -616,6 +624,8 @@ pub struct KeydownInput<'a> {
     pub is_composing: bool,
     /// `KeyboardEvent.keyCode`（IME 変換中は 229）。
     pub key_code: u32,
+    /// `KeyboardEvent.repeat`（押しっぱなしによる自動リピートか）。
+    pub repeat: bool,
 }
 
 /// `data-keys` の 1 トークンを解釈した結果（実キー値 + 修飾キー集合）。
@@ -762,6 +772,14 @@ pub fn prevent_default_from_attr(value: Option<&str>) -> bool {
     matches!(value, Some("") | Some("true"))
 }
 
+/// [`KEYDOWN_IGNORE_REPEAT_ATTR`] の値を解釈する。空文字列または `"true"` のみ `true`。
+///
+/// 属性なし・それ以外（`"false"` を含む）は `false`（従来どおり抑止しない）。
+#[must_use]
+pub fn ignore_repeat_from_attr(value: Option<&str>) -> bool {
+    matches!(value, Some("") | Some("true"))
+}
+
 /// [`action_from_keydown`] の成功結果。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeydownAction {
@@ -769,6 +787,10 @@ pub struct KeydownAction {
     pub action_ref: ActionRef,
     /// 配線層（#3754）が `preventDefault()` を呼ぶべきか。照合成功時にだけ意味を持つ。
     pub prevent_default: bool,
+    /// 自動リピートのため dispatch を抑止すべきか（`data-keydown-ignore-repeat` の opt-in かつ
+    /// `repeat == true`）。`true` でも `prevent_default` は有効なままで、配線層は
+    /// `preventDefault()` を呼んだうえで dispatch だけを見送る。
+    pub repeat_suppressed: bool,
 }
 
 /// keydown の対象要素の属性から dispatch すべき action を判定する純粋関数。
@@ -776,6 +798,8 @@ pub struct KeydownAction {
 /// #3754 の配線層が `closest("[data-action-keydown]")` で見つけた要素を渡す。判定順:
 /// IME 変換中は `None` → action 名が無い/空なら `None` → `data-keys` が無い/不正なら
 /// `None` → どのトークンにも一致しなければ `None` → 一致で `Some`。修飾キーは完全一致。
+/// 自動リピートの判定は一致確定後に行い、抑止時も `Some`（`repeat_suppressed == true`）を返す
+/// （`preventDefault` を維持するため）。
 /// 同一要素上の部品専用配線との優先順位は配線層の責務でありここでは扱わない。
 #[must_use]
 pub fn action_from_keydown<T: AttrSource>(
@@ -793,7 +817,10 @@ pub fn action_from_keydown<T: AttrSource>(
     if !matched {
         return None;
     }
+    let repeat_suppressed =
+        input.repeat && ignore_repeat_from_attr(target.attr(KEYDOWN_IGNORE_REPEAT_ATTR).as_deref());
     Some(KeydownAction {
+        repeat_suppressed,
         action_ref: ActionRef {
             action,
             payload: keydown_payload(input.key, input.modifiers),
@@ -1390,7 +1417,9 @@ mod wiring {
     /// - `preventDefault()` は照合成功かつ `data-keydown-prevent-default` の opt-in があるときだけ、
     ///   dispatch より前に呼ぶ（dispatch 結果の `UnknownAction`/`Reentrant` には左右されない）。
     /// - `stopPropagation()` は呼ばない（document/window の配線を壊さないため）。
-    /// - `KeyboardEvent.repeat`（押しっぱなし）は抑止しない（スコープ外）。
+    /// - `KeyboardEvent.repeat`（押しっぱなし）は `data-keydown-ignore-repeat` の opt-in があるときだけ
+    ///   dispatch を抑止する。抑止時も `data-keydown-prevent-default` の opt-in があれば
+    ///   `preventDefault()` は呼ぶ（既定動作の漏れ防止）。属性なしの挙動は従来どおり。
     /// - `Closure::forget` は 1 回に限り、リスナー数を定数に抑える（A04）。
     ///
     /// # Errors
@@ -1433,12 +1462,16 @@ mod wiring {
                 },
                 is_composing: ke.is_composing(),
                 key_code: ke.key_code(),
+                repeat: ke.repeat(),
             };
             let Some(keydown) = action_from_keydown(&ElementAttrSource(&matched), &input) else {
                 return;
             };
             if keydown.prevent_default {
                 event.prevent_default();
+            }
+            if keydown.repeat_suppressed {
+                return;
             }
             on_action(keydown.action_ref);
         });
@@ -2032,7 +2065,18 @@ mod tests {
             modifiers: KeyModifiers::default(),
             is_composing: false,
             key_code: 27,
+            repeat: false,
         };
         assert_eq!(action_from_keydown(&target, &input), None);
+    }
+
+    #[test]
+    fn ignore_repeat_attr_grammar() {
+        assert!(ignore_repeat_from_attr(Some("")));
+        assert!(ignore_repeat_from_attr(Some("true")));
+        assert!(!ignore_repeat_from_attr(None));
+        assert!(!ignore_repeat_from_attr(Some("false")));
+        assert!(!ignore_repeat_from_attr(Some("TRUE")));
+        assert!(!ignore_repeat_from_attr(Some("1")));
     }
 }

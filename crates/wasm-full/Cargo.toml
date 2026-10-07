@@ -1405,7 +1405,9 @@ name = "fandhe-frontend-wasm-full"
 # ため minor バンプ（0.41.0 → 0.42.0）。
 # イシュー #3754: 汎用 keydown 配線（`Runtime::wire_keydown`・feature `action-keydown`）
 # の新規公開 API 追加のため minor バンプ（0.42.0 → 0.43.0）。
-version = "0.43.0"
+# イシュー #3763: `KeydownInput.repeat`・`KeydownAction.repeat_suppressed`・`data-keydown-ignore-repeat` の
+# 公開 API 追加のため minor バンプ（0.43.0 → 0.44.0）。
+version = "0.44.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

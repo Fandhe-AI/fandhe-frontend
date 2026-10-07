@@ -55,6 +55,7 @@ struct Mods {
     shift: bool,
     composing: bool,
     key_code: u32,
+    repeat: bool,
 }
 
 /// 合成 keydown を `target` 上で発火し、`defaultPrevented` を返す。`bubbles`/`cancelable` は真。
@@ -67,6 +68,7 @@ fn press(target: &Element, key: &str, mods: Mods) -> bool {
     init.set_shift_key(mods.shift);
     init.set_is_composing(mods.composing);
     init.set_key_code(mods.key_code);
+    init.set_repeat(mods.repeat);
     let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).expect("event");
     // `dispatch_event` は `preventDefault` されたとき false を返す。
     !target.dispatch_event(&event).expect("dispatch_event")
@@ -333,4 +335,77 @@ fn script_like_key_name_stays_text() {
     assert_eq!(f.runtime.component().draft, key);
     assert_eq!(f.input.dyn_ref::<HtmlInputElement>().unwrap().value(), key);
     assert!(f.placeholder.query_selector("script").unwrap().is_none());
+}
+
+fn repeating() -> Mods {
+    Mods {
+        repeat: true,
+        ..plain()
+    }
+}
+
+#[wasm_bindgen_test]
+fn repeat_dispatches_without_ignore_repeat_attr() {
+    let f = mount_fixture("keydown-repeat-default-root");
+    declare(&f.input, "increment", "Enter");
+    let before = f.runtime.component().counter;
+
+    press(&f.input, "Enter", plain());
+    press(&f.input, "Enter", repeating());
+
+    assert_eq!(f.runtime.component().counter, before + 2);
+}
+
+#[wasm_bindgen_test]
+fn ignore_repeat_attr_suppresses_only_repeating_keydown() {
+    for (i, value) in ["", "true"].into_iter().enumerate() {
+        let f = mount_fixture(&format!("keydown-repeat-ignore-root-{i}"));
+        declare(&f.input, "increment", "Enter");
+        f.input
+            .set_attribute("data-keydown-ignore-repeat", value)
+            .unwrap();
+        let before = f.runtime.component().counter;
+
+        press(&f.input, "Enter", plain());
+        assert_eq!(f.runtime.component().counter, before + 1);
+        press(&f.input, "Enter", repeating());
+        press(&f.input, "Enter", repeating());
+        assert_eq!(f.runtime.component().counter, before + 1);
+
+        // 再押下（repeat == false）は通常どおり dispatch される。
+        press(&f.input, "Enter", plain());
+        assert_eq!(f.runtime.component().counter, before + 2);
+    }
+}
+
+#[wasm_bindgen_test]
+fn ignore_repeat_attr_false_does_not_suppress() {
+    let f = mount_fixture("keydown-repeat-false-root");
+    declare(&f.input, "increment", "Enter");
+    f.input
+        .set_attribute("data-keydown-ignore-repeat", "false")
+        .unwrap();
+    let before = f.runtime.component().counter;
+
+    press(&f.input, "Enter", repeating());
+
+    assert_eq!(f.runtime.component().counter, before + 1);
+}
+
+#[wasm_bindgen_test]
+fn ignore_repeat_keeps_prevent_default_but_skips_dispatch() {
+    let f = mount_fixture("keydown-repeat-prevent-root");
+    declare(&f.input, "increment", "Enter");
+    f.input
+        .set_attribute("data-keydown-ignore-repeat", "")
+        .unwrap();
+    f.input
+        .set_attribute("data-keydown-prevent-default", "")
+        .unwrap();
+    let before = f.runtime.component().counter;
+
+    let prevented = press(&f.input, "Enter", repeating());
+
+    assert!(prevented);
+    assert_eq!(f.runtime.component().counter, before);
 }
