@@ -3081,6 +3081,7 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 | `data-action-keydown` | action 名。無い・空文字列は不正（誤発火回避のため `data-action` と異なり空を受け付けない） |
 | `data-keys` | 対象キー。必須（ワイルドカードは提供しない） |
 | `data-keydown-prevent-default` | 空文字列または `true` のときだけ preventDefault を opt-in |
+| `data-payload` | action の payload。あれば click と同じ値をそのまま使い、無ければキーの正規トークン（イシュー #3764、§40.6） |
 | `data-keydown-ignore-repeat` | 空文字列または `true` のときだけ、自動リピート（`KeyboardEvent.repeat`）の dispatch 抑止を opt-in（イシュー #3763、§40.5） |
 
 ### 40.2 `data-keys` の文法と照合
@@ -3094,7 +3095,7 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 ### 40.3 IME 変換中の除外と payload
 
 `isComposing || keyCode == 229` の keydown は属性解釈より前に action にしない
-（`command.rs`・`number_input.rs` と同じ安全網）。payload は照合成功後に
+（`command.rs`・`number_input.rs` と同じ安全網）。payload は、対象要素に `data-payload` が無いときのフォールバックとして、照合成功後に
 `Control+Alt+Shift+Meta` の固定順の正規トークン（例: `Control+Shift+Enter`、
 `Space`、`Plus`）として組み立てる。
 
@@ -3111,6 +3112,24 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
   （Space のスクロール等）が漏れるため。抑止するのは dispatch のみである。
 - 公開 API の追加（`KeydownInput.repeat`・`KeydownAction.repeat_suppressed` の pub フィールド追加は構築側を壊す）のため
   minor バンプ（0.43.0 → 0.44.0）。
+
+### 40.6 `data-payload` との合成（イシュー #3764、親 #3762）
+
+- 採用方式は「優先」。照合成功後の payload は、対象要素に `data-payload` があればその値をそのまま使い、
+  無ければ従来どおりキーの正規トークンを使う。click 経路（`action_from_click`）と同じ値になり、
+  同じ要素で click と keydown の payload がそろう。`Component::decode_action` は click と keydown で
+  同じ復号器を共用できる（`AppState` の `remove_item` は id、`set_draft` は文字列を keydown でも受け取れる）。
+  `Component` 側の変更は不要。
+- 区切り文字での連結（キー + `data-payload`）は採らない。`remove_item` のように payload 全体を型として復号する
+  decoder が壊れ、click 用と keydown 用で decoder を分ける必要が出る。区切り文字が利用者の payload に現れた場合の曖昧さもある。
+- トレードオフ: `data-payload` を付けるとどのキーで発火したかは payload から失われる。キーを区別したい場合は
+  `data-payload` を付けない（トークンが入る）か、キーごとに別要素・別 action 名にする。
+- `data-payload=""`（属性あり・空）は click と同様に空文字列をそのまま使い、トークンへはフォールバックしない。
+- 長さ上限は設けない。click 経路の `data-payload` にも上限が無く、値は作者が書く DOM 属性でありキー入力のような
+  実行時の外部入力ではないため、`data-keys` のような fail-closed 検証は不要とする。
+- `data-keys` 照合・IME 除外・`preventDefault`・`repeat_suppressed` の判定と順序は変えない。変わるのは `ActionRef.payload` の決定だけ。
+- 既存挙動の変更: `data-action-keydown` と `data-payload` を併記していた要素は、payload がキーのトークンから
+  `data-payload` の値に変わる。0.x の破壊的変更として minor バンプ（0.44.0 → 0.45.0）。
 
 ### 40.4 semver・テスト
 
@@ -3173,7 +3192,7 @@ bubble フェーズにあり、同一 target・同一フェーズのリスナー
   不一致キー、IME 除外、preventDefault の opt-in、優先順位、root 外、hydrate 経路、XSS）で検証する。
 - `KeyboardEvent.repeat` の抑止は `data-keydown-ignore-repeat` の opt-in で対応済み（§40.5、0.44.0）。
   配線層は preventDefault → `repeat_suppressed` なら return → `on_action` の順に処理する。
-- 対象外: `data-payload` との合成。
+- `data-payload` との合成は §40.6 で対応済み（0.45.0）。
 
 ### 41.5 document/window の部品配線との排他方式（イシュー #3767、実装は #3768）
 

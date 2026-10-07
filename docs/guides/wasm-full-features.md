@@ -119,9 +119,12 @@ action になりません。押しっぱなしの自動リピートを無視し�
 付けます。2 回目以降の keydown（`KeyboardEvent.repeat`）だけ dispatch せず、最初の
 keydown は通ります。`data-keydown-prevent-default` も付けていれば repeat 中も
 `preventDefault()` は維持されます。属性なしの挙動は従来どおりです。
+ペイロードは、要素に `data-payload` を付ければ click と同じ値になります（0.45.0 で追加、
+イシュー #3764）。付けない場合は従来どおりキーの正規トークン（例: `Control+Enter`）で、
+付けるとキー情報は payload に入りません。
 `entry.rs` の参照実装（`mount`/`hydrate`）は `Runtime::mount`/`hydrate` を呼ぶため、
-この配線は追加コードなしで有効になります（`AppState` では payload を使わない
-`increment` 等が keydown で使え、`set_draft`・`remove_item` は不向きです）。
+この配線は追加コードなしで有効になります（`AppState` では `increment` 等に加え、
+`data-payload` を付ければ `set_draft`・`remove_item` も keydown で使えます）。
 詳細は `docs/design/wasm-full-architecture.md` §40.5・§41 を参照してください。
 
 `text-animation` feature（0.35.0 で追加、イシュー #2532）は `scroll-driver`/
@@ -422,6 +425,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
 | 0.40.3 | PR #2582 で origin/main（#2536 の `shared_layout`〔`layout-animation` feature 配下、feature 追加なし〕統合で 0.40.2 到達）を再取り込み。本 PR 側も 0.40.2 のため同一版数の衝突として #638 条項に従い +1 して 0.40.3 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.16.3 へ追随した |
 | 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
+| 0.45.0 | keydown action の payload を `data-payload` 優先に変更（イシュー #3764） |
 | 0.43.0 | `action-keydown` feature（イシュー #3754）。汎用 keydown 配線を `Runtime::mount`/`hydrate` に追加 |
 | 0.40.4 | PR #2582 で origin/main（#2539 の `count-up` feature 統合で 0.40.3 到達）を再取り込み。本 PR 側も 0.40.3 のため同一版数の衝突として #638 条項に従い +1 して 0.40.4 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.1 へ追随した |
 

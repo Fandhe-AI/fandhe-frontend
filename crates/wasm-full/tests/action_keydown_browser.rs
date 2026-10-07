@@ -337,6 +337,64 @@ fn script_like_key_name_stays_text() {
     assert!(f.placeholder.query_selector("script").unwrap().is_none());
 }
 
+// ---- data-payload の合成（イシュー #3764）----
+
+#[wasm_bindgen_test]
+fn data_payload_overrides_key_token_for_set_draft() {
+    let f = mount_fixture("keydown-payload-draft-root");
+    declare(&f.input, "set_draft", "Control+Enter");
+    f.input.set_attribute("data-payload", "hello").unwrap();
+
+    press(
+        &f.input,
+        "Enter",
+        Mods {
+            ctrl: true,
+            ..plain()
+        },
+    );
+
+    assert_eq!(f.runtime.component().draft, "hello");
+    assert_eq!(
+        f.input.dyn_ref::<HtmlInputElement>().unwrap().value(),
+        "hello"
+    );
+}
+
+#[wasm_bindgen_test]
+fn data_payload_lets_remove_item_work_on_keydown() {
+    let f = mount_fixture("keydown-payload-remove-root");
+    f.runtime.dispatch_action("set_draft", "second");
+    f.runtime.dispatch_action("add_item", "");
+    let list = f
+        .placeholder
+        .query_selector("[data-testid='item-list']")
+        .unwrap()
+        .unwrap();
+    let before = list.children().length();
+    let first_item = list.children().item(0).unwrap();
+    let id = f.runtime.component().item_ids[1].to_string();
+    declare(&f.input, "remove_item", "Delete");
+    f.input.set_attribute("data-payload", &id).unwrap();
+
+    press(&f.input, "Delete", plain());
+
+    assert_eq!(list.children().length(), before - 1);
+    assert!(same(&first_item, list.children().item(0)));
+}
+
+#[wasm_bindgen_test]
+fn data_payload_script_stays_text() {
+    let f = mount_fixture("keydown-payload-xss-root");
+    let p = "<script>alert(1)</script>";
+    declare(&f.input, "set_draft", "Enter");
+    f.input.set_attribute("data-payload", p).unwrap();
+
+    press(&f.input, "Enter", plain());
+
+    assert_eq!(f.runtime.component().draft, p);
+    assert!(f.placeholder.query_selector("script").unwrap().is_none());
+}
 fn repeating() -> Mods {
     Mods {
         repeat: true,
