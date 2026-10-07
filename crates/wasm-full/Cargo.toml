@@ -1400,8 +1400,10 @@ name = "fandhe-frontend-wasm-full"
 # バンプ値 0.17.1 へ追随する。
 #
 # イシュー #3751: `Runtime::dispatch_action` / `DispatchOutcome` の新規公開 API
-# 追加のため minor バンプ。
-version = "0.41.0"
+# 追加のため minor バンプ（0.40.4 → 0.41.0）。
+# イシュー #3753: 汎用 keydown 属性契約の純粋ロジック（`events.rs` の公開 API 追加）の
+# ため minor バンプ（0.41.0 → 0.42.0）。
+version = "0.42.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

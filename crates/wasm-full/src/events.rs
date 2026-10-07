@@ -34,6 +34,14 @@
 //! - 再描画出力は呼び出し側（#76/#77）が `fandhe_frontend_core::render()`（既定エスケープ）を
 //!   経由させる前提であり、本モジュールは HTML 文字列を一切組み立てない
 //!   （REQ-1 不変条件、`.claude/rules/coding-rust.md`）。
+//!
+//! # keydown 属性契約（イシュー #3753、親 #3752）
+//!
+//! `data-action-keydown`（action 名）・`data-keys`（対象キー）・
+//! `data-keydown-prevent-default`（opt-in）の解釈、キー絞り込み、IME 変換中の除外、
+//! payload 書式は web-sys 非依存の純粋関数（[`action_from_keydown`] ほか）として本モジュールに置く。
+//! リスナー登録・祖先探索・`preventDefault()` の実呼び出し・部品専用配線との優先順位・
+//! feature は #3754 の配線層で扱う。
 
 /// クリック/入力イベントから判定した「dispatch すべきアクション」への参照。
 ///
@@ -549,6 +557,251 @@ pub const READONLY_VALUE_CHANGING_PARTS: &[(&str, &str)] = &[
 #[must_use]
 pub fn is_readonly_value_changing_part(scope: &str, part: &str) -> bool {
     READONLY_VALUE_CHANGING_PARTS.contains(&(scope, part))
+}
+// ---------------------------------------------------------------------
+// 汎用 keydown 属性契約（イシュー #3753、親 #3752）。純粋ロジック層のみ。
+// ---------------------------------------------------------------------
+
+/// keydown 配線で action 名として読む属性（`data-action-keydown`、イシュー #3753）。
+///
+/// アプリ固有のキー操作（処理中の Esc で停止する等）を `Component` の action へ
+/// 宣言的に渡す口。値が空文字列の場合は誤発火を避けるため不正値として扱う
+/// （[`action_from_click`] が空文字列の `data-action` を受け付けるのとは異なる）。
+pub const ACTION_KEYDOWN_ATTR: &str = "data-action-keydown";
+
+/// 対象キーの絞り込み属性（`data-keys`、イシュー #3753）。
+///
+/// 値は ASCII 空白区切りのトークン列で、各トークンは `[修飾キー+]*キー名`
+/// （WAI-ARIA `aria-keyshortcuts` の書式に寄せる）。必須であり、無ければ
+/// action にしない（全キー対象のワイルドカードは提供しない）。文法は [`parse_keys`] を参照。
+pub const KEYS_ATTR: &str = "data-keys";
+
+/// `preventDefault()` の opt-in 属性（`data-keydown-prevent-default`、イシュー #3753）。
+///
+/// 値が空文字列または `"true"` のときだけ有効（[`prevent_default_from_attr`]）。
+/// 適用対象は照合に成功した keydown のみ。実際の呼び出しは #3754 の配線層が担う。
+pub const KEYDOWN_PREVENT_DEFAULT_ATTR: &str = "data-keydown-prevent-default";
+
+/// `data-keys` 全体の最大バイト長。属性値の処理コストを一定以内に抑える（DoS 対策）。
+pub const MAX_KEYS_ATTR_LEN: usize = 512;
+/// `data-keys` のトークン数の上限。
+pub const MAX_KEY_TOKENS: usize = 16;
+/// 1 トークン内のキー名（修飾キーを除く）の最大バイト長。
+pub const MAX_KEY_NAME_LEN: usize = 64;
+
+/// 修飾キーの押下状態。`keynav::Modifiers` とは別型である。
+///
+/// `keynav::Modifiers` は Shift を持たず「修飾キー付きなら無視する」という部品操作向けの
+/// 方針だが、本型は Shift も含め 4 つすべてを **完全一致** で照合するため意図的に分けている。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KeyModifiers {
+    /// Control キー。
+    pub ctrl: bool,
+    /// Alt キー。
+    pub alt: bool,
+    /// Shift キー。
+    pub shift: bool,
+    /// Meta キー。
+    pub meta: bool,
+}
+
+/// keydown イベントから配線層（#3754）が取り出す、照合に必要な値一式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeydownInput<'a> {
+    /// `KeyboardEvent.key`。
+    pub key: &'a str,
+    /// 修飾キーの押下状態。
+    pub modifiers: KeyModifiers,
+    /// `KeyboardEvent.isComposing`。
+    pub is_composing: bool,
+    /// `KeyboardEvent.keyCode`（IME 変換中は 229）。
+    pub key_code: u32,
+}
+
+/// `data-keys` の 1 トークンを解釈した結果（実キー値 + 修飾キー集合）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyShortcut {
+    key: String,
+    modifiers: KeyModifiers,
+}
+
+impl KeyShortcut {
+    /// 照合に使う `KeyboardEvent.key` 相当の実キー値（`Space` は `" "`、`Plus` は `"+"` に写し済み）。
+    #[must_use]
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    /// 要求する修飾キー集合（完全一致で照合される）。
+    #[must_use]
+    pub fn modifiers(&self) -> KeyModifiers {
+        self.modifiers
+    }
+}
+
+/// `data-keys` の不正値の分類。外部へ送る文字列は持たない（情報漏えい回避）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeysParseError {
+    /// 空、または空白のみ。
+    Empty,
+    /// 全長が [`MAX_KEYS_ATTR_LEN`] を超過。
+    TooLong,
+    /// トークン数が [`MAX_KEY_TOKENS`] を超過。
+    TooManyTokens,
+    /// 空のセグメント（`++`、先頭・末尾の `+`）。
+    EmptySegment,
+    /// 未知の修飾キー名（`Control`/`Alt`/`Shift`/`Meta` 以外。大文字小文字区別）。
+    UnknownModifier,
+    /// 同一トークン内で修飾キーが重複。
+    DuplicateModifier,
+    /// キー名に制御文字を含む、または [`MAX_KEY_NAME_LEN`] を超過。
+    InvalidKeyName,
+}
+
+/// `data-keys` 属性値を解釈する。1 つでも不正なら全体を `Err` とする（部分採用しない、fail-closed）。
+///
+/// 文法: ASCII 空白区切りのトークン列。各トークンは `+` 区切りで、最後がキー名、
+/// それより前が修飾キー（`Control`/`Alt`/`Shift`/`Meta`、別名なし）。キー名は
+/// `KeyboardEvent.key` と完全一致で比べ、大文字小文字は折り畳まない。表記できない
+/// 2 キーのみ別名を持つ（`Space` は `" "`、`Plus` は `"+"`）。
+///
+/// ブラウザは Shift+a を `key == "A"` で報告するため、`Shift+a` は一致せず `Shift+A`
+/// と書く必要がある。`?` は `Shift+?` と書く。
+///
+/// # Errors
+///
+/// 不正値は [`KeysParseError`] の各分類で返す。
+pub fn parse_keys(value: &str) -> Result<Vec<KeyShortcut>, KeysParseError> {
+    if value.len() > MAX_KEYS_ATTR_LEN {
+        return Err(KeysParseError::TooLong);
+    }
+    let tokens: Vec<&str> = value.split_ascii_whitespace().collect();
+    if tokens.is_empty() {
+        return Err(KeysParseError::Empty);
+    }
+    if tokens.len() > MAX_KEY_TOKENS {
+        return Err(KeysParseError::TooManyTokens);
+    }
+    tokens.into_iter().map(parse_key_token).collect()
+}
+
+fn parse_key_token(token: &str) -> Result<KeyShortcut, KeysParseError> {
+    let segments: Vec<&str> = token.split('+').collect();
+    if segments.iter().any(|s| s.is_empty()) {
+        return Err(KeysParseError::EmptySegment);
+    }
+    let (name, mods) = segments.split_last().ok_or(KeysParseError::EmptySegment)?;
+    let mut modifiers = KeyModifiers::default();
+    for m in mods {
+        let slot = match *m {
+            "Control" => &mut modifiers.ctrl,
+            "Alt" => &mut modifiers.alt,
+            "Shift" => &mut modifiers.shift,
+            "Meta" => &mut modifiers.meta,
+            _ => return Err(KeysParseError::UnknownModifier),
+        };
+        if *slot {
+            return Err(KeysParseError::DuplicateModifier);
+        }
+        *slot = true;
+    }
+    if name.len() > MAX_KEY_NAME_LEN || name.chars().any(char::is_control) {
+        return Err(KeysParseError::InvalidKeyName);
+    }
+    let key = match *name {
+        "Space" => " ",
+        "Plus" => "+",
+        other => other,
+    };
+    Ok(KeyShortcut {
+        key: key.to_string(),
+        modifiers,
+    })
+}
+
+/// IME 変換中の keydown かを判定する。
+///
+/// `command.rs`・`number_input.rs` の既存の安全網（`isComposing || keyCode == 229`）と
+/// 同じ形。変換確定の Enter や Esc で意図しない action を起こさないために使う。
+#[must_use]
+pub fn is_composing_keydown(is_composing: bool, key_code: u32) -> bool {
+    is_composing || key_code == 229
+}
+
+/// 押されたキーを `data-keys` と同じ文法の正規トークン文字列にする（payload 用）。
+///
+/// 修飾キーは `Control+Alt+Shift+Meta` の固定順、`" "` は `Space`、`"+"` は `Plus`。
+/// 照合成功後にだけ作るため、常に文法上妥当な文字列になる。
+#[must_use]
+pub fn keydown_payload(key: &str, modifiers: KeyModifiers) -> String {
+    let mut out = String::new();
+    for (on, name) in [
+        (modifiers.ctrl, "Control"),
+        (modifiers.alt, "Alt"),
+        (modifiers.shift, "Shift"),
+        (modifiers.meta, "Meta"),
+    ] {
+        if on {
+            out.push_str(name);
+            out.push('+');
+        }
+    }
+    out.push_str(match key {
+        " " => "Space",
+        "+" => "Plus",
+        other => other,
+    });
+    out
+}
+
+/// [`KEYDOWN_PREVENT_DEFAULT_ATTR`] の値を解釈する。空文字列または `"true"` のみ `true`。
+///
+/// 属性なし・それ以外（`"false"` を含む）は `false`（既存の挙動を変えない）。
+#[must_use]
+pub fn prevent_default_from_attr(value: Option<&str>) -> bool {
+    matches!(value, Some("") | Some("true"))
+}
+
+/// [`action_from_keydown`] の成功結果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeydownAction {
+    /// dispatch へ渡す action 名と payload（押されたキーの正規トークン）。
+    pub action_ref: ActionRef,
+    /// 配線層（#3754）が `preventDefault()` を呼ぶべきか。照合成功時にだけ意味を持つ。
+    pub prevent_default: bool,
+}
+
+/// keydown の対象要素の属性から dispatch すべき action を判定する純粋関数。
+///
+/// #3754 の配線層が `closest("[data-action-keydown]")` で見つけた要素を渡す。判定順:
+/// IME 変換中は `None` → action 名が無い/空なら `None` → `data-keys` が無い/不正なら
+/// `None` → どのトークンにも一致しなければ `None` → 一致で `Some`。修飾キーは完全一致。
+/// 同一要素上の部品専用配線との優先順位は配線層の責務でありここでは扱わない。
+#[must_use]
+pub fn action_from_keydown<T: AttrSource>(
+    target: &T,
+    input: &KeydownInput<'_>,
+) -> Option<KeydownAction> {
+    if is_composing_keydown(input.is_composing, input.key_code) {
+        return None;
+    }
+    let action = target.attr(ACTION_KEYDOWN_ATTR).filter(|a| !a.is_empty())?;
+    let shortcuts = parse_keys(&target.attr(KEYS_ATTR)?).ok()?;
+    let matched = shortcuts
+        .iter()
+        .any(|s| s.key == input.key && s.modifiers == input.modifiers);
+    if !matched {
+        return None;
+    }
+    Some(KeydownAction {
+        action_ref: ActionRef {
+            action,
+            payload: keydown_payload(input.key, input.modifiers),
+        },
+        prevent_default: prevent_default_from_attr(
+            target.attr(KEYDOWN_PREVENT_DEFAULT_ATTR).as_deref(),
+        ),
+    })
 }
 
 // ---------------------------------------------------------------------
@@ -1640,5 +1893,43 @@ mod tests {
     #[test]
     fn unknown_scope_is_not_readonly_value_changing() {
         assert!(!is_readonly_value_changing_part("unknown-scope", "item"));
+    }
+
+    // 汎用 keydown 属性契約（イシュー #3753）。網羅ケースは tests/keydown_native.rs。
+    #[test]
+    fn parse_keys_maps_aliases_and_modifiers() {
+        let v = parse_keys("Control+Shift+Space Plus").expect("valid");
+        assert_eq!(v[0].key(), " ");
+        assert_eq!(
+            v[0].modifiers(),
+            KeyModifiers {
+                ctrl: true,
+                shift: true,
+                ..KeyModifiers::default()
+            }
+        );
+        assert_eq!(v[1].key(), "+");
+    }
+
+    #[test]
+    fn parse_keys_rejects_duplicate_and_unknown_modifiers() {
+        assert_eq!(
+            parse_keys("Alt+Alt+K"),
+            Err(KeysParseError::DuplicateModifier)
+        );
+        assert_eq!(parse_keys("Ctrl+K"), Err(KeysParseError::UnknownModifier));
+        assert_eq!(parse_keys("A++"), Err(KeysParseError::EmptySegment));
+    }
+
+    #[test]
+    fn keydown_requires_keys_attr() {
+        let target = element(&[(ACTION_KEYDOWN_ATTR, "stop")]);
+        let input = KeydownInput {
+            key: "Escape",
+            modifiers: KeyModifiers::default(),
+            is_composing: false,
+            key_code: 27,
+        };
+        assert_eq!(action_from_keydown(&target, &input), None);
     }
 }

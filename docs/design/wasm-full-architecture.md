@@ -3065,3 +3065,40 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 --headless --chrome`、ソート巡回・改ざん検知・列表示切替・
 `indeterminate` 同期・ページング境界・link モード無視・複数インスタンス
 独立性・`Runtime::hydrate` 統合）の 3 層で検証する。
+
+## 40. 汎用 keydown 属性契約の純粋ロジック（イシュー #3753、親 #3752）
+
+アプリ固有のキー操作を `Component` の action として受け取る宣言的な口の
+うち、web-sys に依存しない純粋ロジック層を `crates/wasm-full/src/events.rs`
+に追加した。リスナー登録・`closest("[data-action-keydown]")` による祖先探索・
+`preventDefault()` の実呼び出し・部品専用配線との優先順位・feature 新設は
+#3754 で扱う（本節の範囲外）。
+
+### 40.1 属性契約
+
+| 属性 | 役割 |
+|------|------|
+| `data-action-keydown` | action 名。無い・空文字列は不正（誤発火回避のため `data-action` と異なり空を受け付けない） |
+| `data-keys` | 対象キー。必須（ワイルドカードは提供しない） |
+| `data-keydown-prevent-default` | 空文字列または `true` のときだけ preventDefault を opt-in |
+
+### 40.2 `data-keys` の文法と照合
+
+- ASCII 空白区切りのトークン列。各トークンは `[修飾キー+]*キー名`（`aria-keyshortcuts` 風）
+- 修飾キーは `Control` / `Alt` / `Shift` / `Meta`（大文字小文字区別、別名なし）
+- キー名は `KeyboardEvent.key` と完全一致。例外の別名は `Space`（`" "`）と `Plus`（`"+"`）
+- 修飾キー集合は完全一致で比べる（Shift 含む）。`Shift+a` は `key == "A"` と一致しないため `Shift+A` と書く
+- 不正値（空・空セグメント・未知/重複の修飾キー・制御文字・長さ/トークン数/全長の上限超過）は属性全体を不正とし、部分採用しない（fail-closed）
+
+### 40.3 IME 変換中の除外と payload
+
+`isComposing || keyCode == 229` の keydown は属性解釈より前に action にしない
+（`command.rs`・`number_input.rs` と同じ安全網）。payload は照合成功後に
+`Control+Alt+Shift+Meta` の固定順の正規トークン（例: `Control+Shift+Enter`、
+`Space`、`Plus`）として組み立てる。
+
+### 40.4 semver・テスト
+
+公開 API の純追加のため minor バンプ（0.41.0 → 0.42.0）。テストは
+`events.rs` 内単体テストと `crates/wasm-full/tests/keydown_native.rs`
+（native、一致・不一致・修飾キー・IME・不正値・preventDefault opt-in）で検証する。
