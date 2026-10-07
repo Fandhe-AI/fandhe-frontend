@@ -1764,17 +1764,24 @@ mod wiring {
         // 参照）。
         register_keydown_root(root, &hover_state);
 
+        let document = web_sys::window()
+            .and_then(|window| window.document())
+            .ok_or_else(|| JsValue::from_str("sidebar: no document"))?;
+
         // 汎用 keydown 配線（`action-keydown`）との排他用の述語（イシュー #3768、設計記録
-        // §41.5）。`root` が切断されたら `Gone` で登録簿から自動除去される。無関係なキーでは
+        // §41.5）。切断中は `Passes` を返し、再挿入で再開する。無関係なキーでは
         // DOM を走査しない。判定は実処理（[`handle_document_keydown`]）と同じ純粋関数・
         // 同じ解決（trigger → rail）を使う。
         #[cfg(feature = "action-keydown")]
         {
             use crate::keydown_claim::{register, KeydownClaimInput, Verdict};
             let claim_root = root.clone();
+            let claim_document = document.clone();
             register(Rc::new(move |input: &KeydownClaimInput| {
-                if !claim_root.is_connected() {
-                    return Verdict::Gone;
+                // 切断中・別 Document のイベントは消費しない。述語は実リスナーと同じ寿命で
+                // 残し、再挿入されれば判定を再開する。
+                if !claim_root.is_connected() || !input.is_document(&claim_document) {
+                    return Verdict::Passes;
                 }
                 let consumes = if input.key == "Escape" {
                     let dismiss = all_providers(&claim_root).iter().any(|provider| {
@@ -1800,9 +1807,6 @@ mod wiring {
             }));
         }
 
-        let document = web_sys::window()
-            .and_then(|window| window.document())
-            .ok_or_else(|| JsValue::from_str("sidebar: no document"))?;
         let keydown_root = root.clone();
         let closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_document_keydown(&keydown_root, &event);

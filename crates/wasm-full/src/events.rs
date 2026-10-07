@@ -1481,7 +1481,9 @@ mod wiring {
             };
             // 部品（overlay・sidebar・command）がこの keydown を消費するなら見送る
             // （方式 2b、設計記録 §41.5）。`preventDefault` も行わず部品が単独で処理する。
+            let event_document = matched.owner_document();
             let claim_input = crate::keydown_claim::KeydownClaimInput {
+                document: event_document.as_ref().map(|doc| doc as &dyn std::any::Any),
                 key: &key,
                 ctrl: input.modifiers.ctrl,
                 alt: input.modifiers.alt,

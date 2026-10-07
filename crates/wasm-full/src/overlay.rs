@@ -697,7 +697,13 @@ mod wiring {
             #[cfg(feature = "action-keydown")]
             let claim_handle = {
                 let claim_stack = stack.clone();
+                let claim_document = document.clone();
                 crate::keydown_claim::register(std::rc::Rc::new(move |input| {
+                    // このコントローラの Document に届いたイベントだけを消費対象にする
+                    // （別 Document の overlay が親 Document の汎用 action を抑止しない）。
+                    if !input.is_document(&claim_document) {
+                        return crate::keydown_claim::Verdict::Passes;
+                    }
                     let Ok(stack_ref) = claim_stack.try_borrow() else {
                         return crate::keydown_claim::Verdict::Passes;
                     };

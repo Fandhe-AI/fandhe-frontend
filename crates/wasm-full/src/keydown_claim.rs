@@ -33,6 +33,20 @@ pub(crate) struct KeydownClaimInput<'a> {
     pub shift: bool,
     /// Meta 押下。
     pub meta: bool,
+    /// イベントの伝播先 Document（`target.ownerDocument`）。部品は自分のリスナーが載る
+    /// Document と一致するときだけ消費してよい（同一オリジン iframe など別 Document の部品が
+    /// 親 Document の汎用配線を抑止しないため）。型を `Any` で隠して web-sys 非依存を保つ。
+    /// 取得できなかったときは `None`（どの部品も消費しない側に倒す）。
+    pub document: Option<&'a dyn std::any::Any>,
+}
+
+impl KeydownClaimInput<'_> {
+    /// イベントの伝播先 Document が `document` と等しいかを返す。`None` や型違いは偽。
+    pub fn is_document<T: PartialEq + 'static>(&self, document: &T) -> bool {
+        self.document
+            .and_then(|any| any.downcast_ref::<T>())
+            .is_some_and(|event_document| event_document == document)
+    }
 }
 
 /// 述語の判定結果。
@@ -42,8 +56,6 @@ pub(crate) enum Verdict {
     Consumes,
     /// 部品は消費しない。
     Passes,
-    /// 登録元の root が切断された。登録簿が次の問い合わせで自動的に除去する。
-    Gone,
 }
 
 /// [`register`] が返す登録の識別子。[`unregister`] へ渡して解除する。
@@ -73,7 +85,7 @@ pub(crate) fn register(predicate: Predicate) -> ClaimHandle {
     ClaimHandle(id)
 }
 
-/// 登録を解除する。未登録（[`Verdict::Gone`] で除去済み等）なら何もしない。
+/// 登録を解除する。未登録なら何もしない。
 pub(crate) fn unregister(handle: ClaimHandle) {
     CLAIMS.with(|claims| {
         if let Ok(mut claims) = claims.try_borrow_mut() {
@@ -85,27 +97,17 @@ pub(crate) fn unregister(handle: ClaimHandle) {
 /// いずれかの部品が `input` を消費するかを返す。
 ///
 /// 述語は借用を解放してから呼ぶ（述語内の登録・解除と衝突しない）。
-/// [`Verdict::Gone`] を返した登録はここで除去する。
+/// 登録の除去は [`unregister`] だけが行う（一時的な DOM 切断で恒久的に失わないため）。
 pub(crate) fn claims(input: &KeydownClaimInput) -> bool {
     let snapshot: Vec<(u64, Predicate)> = CLAIMS.with(|claims| match claims.try_borrow() {
         Ok(claims) => claims.clone(),
         Err(_) => Vec::new(),
     });
     let mut consumed = false;
-    let mut gone: Vec<u64> = Vec::new();
-    for (id, predicate) in &snapshot {
-        match predicate(input) {
-            Verdict::Consumes => consumed = true,
-            Verdict::Passes => {}
-            Verdict::Gone => gone.push(*id),
+    for (_, predicate) in &snapshot {
+        if predicate(input) == Verdict::Consumes {
+            consumed = true;
         }
-    }
-    if !gone.is_empty() {
-        CLAIMS.with(|claims| {
-            if let Ok(mut claims) = claims.try_borrow_mut() {
-                claims.retain(|(id, _)| !gone.contains(id));
-            }
-        });
     }
     consumed
 }
@@ -121,6 +123,7 @@ mod tests {
             alt: false,
             shift: false,
             meta: false,
+            document: None,
         }
     }
 
@@ -162,13 +165,14 @@ mod tests {
     }
 
     #[test]
-    fn gone_is_swept_and_others_still_evaluated() {
-        reset();
-        register(Rc::new(|_| Verdict::Gone));
-        register(Rc::new(|_| Verdict::Consumes));
-        assert_eq!(registered_count(), 2);
-        assert!(claims(&input("x")));
-        assert_eq!(registered_count(), 1);
+    fn is_document_matches_only_equal_document() {
+        let doc = 7_u32;
+        let mut i = input("x");
+        assert!(!i.is_document(&doc));
+        i.document = Some(&doc);
+        assert!(i.is_document(&7_u32));
+        assert!(!i.is_document(&8_u32));
+        assert!(!i.is_document(&"x"));
     }
 
     #[test]

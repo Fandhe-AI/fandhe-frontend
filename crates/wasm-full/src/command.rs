@@ -730,14 +730,17 @@ mod wiring {
             if let Some(document) = document {
                 // 汎用 keydown 配線（`action-keydown`）との排他用の述語（イシュー #3768、設計記録
                 // §41.5）。実ハンドラと同じ [`is_document_toggle`]・[`toggle_target`] を使う。
-                // `root` が切断されたら `Gone` で登録簿から自動除去される。
+                // 切断中は `Passes` を返し、再挿入で再開する。
                 #[cfg(feature = "action-keydown")]
                 {
                     use crate::keydown_claim::{register, KeydownClaimInput, Verdict};
                     let claim_root = root.clone();
+                    let claim_document = document.clone();
                     register(std::rc::Rc::new(move |input: &KeydownClaimInput| {
-                        if !claim_root.is_connected() {
-                            return Verdict::Gone;
+                        // 切断中・別 Document のイベントは消費しない。述語は実リスナーと同じ
+                        // 寿命で残し、再挿入されれば判定を再開する。
+                        if !claim_root.is_connected() || !input.is_document(&claim_document) {
+                            return Verdict::Passes;
                         }
                         let modifiers = crate::keynav::Modifiers {
                             ctrl: input.ctrl,
