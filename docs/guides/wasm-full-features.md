@@ -426,7 +426,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.40.4"
+version = "0.43.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
