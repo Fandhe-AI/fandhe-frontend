@@ -63,11 +63,12 @@
 //!   opt-in 時のみ呼ぶ。IME 変換中は action にならない
 //! - 属性はフォーカスされうる要素かその祖先に置く
 //!
-//! action の payload には押されたキーの正規トークン（例 `Escape`）が入る。`AppState`
-//! では payload を使わない `increment` / `decrement` / `reset` / `add_item` が keydown
-//! でも受理される。一方 `set_draft` はキー名が draft に入ってしまい、`remove_item` は
-//! payload を id として解釈できず no-op になるため、keydown には不向き。未知の action
-//! 名は no-op になる。詳細は `docs/design/wasm-full-architecture.md` 第 40・41 節を参照。
+//! action の payload は、要素に `data-payload` があればその値（click と同じ。空属性は空文字列）、
+//! 無ければ押されたキーの正規トークン（例 `Escape`）になる。`AppState` では payload を使わない
+//! `increment` / `decrement` / `reset` / `add_item` はそのまま受理される。`set_draft` /
+//! `remove_item` を keydown で使う場合は `data-payload` を付けること（無いとキー名が draft に入る・
+//! id として解釈できず no-op になる）。未知の action 名は no-op になる。詳細は
+//! `docs/design/wasm-full-architecture.md` 第 40・41 節を参照。
 
 use fandhe_frontend_interactive::AppState;
 use std::cell::RefCell;

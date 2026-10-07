@@ -278,3 +278,84 @@ fn ignore_repeat_attr_grammar() {
     assert!(!ignore_repeat_from_attr(Some("false")));
     assert!(!ignore_repeat_from_attr(Some("1")));
 }
+
+// ---- data-payload の合成（イシュー #3764、設計記録 §40.6）----
+
+fn el_with_payload(keys: &str, payload: &str) -> Fake {
+    let mut e = el(Some(keys));
+    e.0.insert("data-payload".to_string(), payload.to_string());
+    e
+}
+
+#[test]
+fn data_payload_takes_priority_over_key_token() {
+    let r = action_from_keydown(&el_with_payload("Escape", "42"), &input("Escape", NONE)).unwrap();
+    assert_eq!(r.action_ref.payload, "42");
+}
+
+#[test]
+fn data_payload_wins_with_modifiers() {
+    let m = KeyModifiers {
+        ctrl: true,
+        shift: true,
+        ..NONE
+    };
+    let r = action_from_keydown(
+        &el_with_payload("Control+Shift+Enter", "7"),
+        &input("Enter", m),
+    )
+    .unwrap();
+    assert_eq!(r.action_ref.payload, "7");
+}
+
+#[test]
+fn empty_data_payload_is_used_as_empty_string() {
+    let r = action_from_keydown(&el_with_payload("Escape", ""), &input("Escape", NONE)).unwrap();
+    assert_eq!(r.action_ref.payload, "");
+}
+
+#[test]
+fn same_data_payload_for_every_matching_key() {
+    let e = el_with_payload("Enter Space", "x");
+    for key in ["Enter", " "] {
+        let r = action_from_keydown(&e, &input(key, NONE)).unwrap();
+        assert_eq!(r.action_ref.payload, "x");
+    }
+}
+
+#[test]
+fn data_payload_does_not_affect_matching() {
+    let e = el_with_payload("Escape", "x");
+    assert!(action_from_keydown(&e, &input("Enter", NONE)).is_none());
+    let mut ime = input("Escape", NONE);
+    ime.is_composing = true;
+    assert!(action_from_keydown(&e, &ime).is_none());
+    let mut no_keys = el_with_payload("Escape", "x");
+    no_keys.0.remove(KEYS_ATTR);
+    assert!(action_from_keydown(&no_keys, &input("Escape", NONE)).is_none());
+    assert!(action_from_keydown(&el_with_payload("Bad++", "x"), &input("Escape", NONE)).is_none());
+}
+
+#[test]
+fn data_payload_keeps_repeat_and_prevent_default_results() {
+    for with_payload in [false, true] {
+        let mut e = el(Some("Escape"));
+        if with_payload {
+            e.0.insert("data-payload".to_string(), "x".to_string());
+        }
+        e.0.insert(KEYDOWN_IGNORE_REPEAT_ATTR.to_string(), String::new());
+        e.0.insert(KEYDOWN_PREVENT_DEFAULT_ATTR.to_string(), String::new());
+        let mut i = input("Escape", NONE);
+        i.repeat = true;
+        let r = action_from_keydown(&e, &i).unwrap();
+        assert!(r.repeat_suppressed);
+        assert!(r.prevent_default);
+    }
+}
+
+#[test]
+fn script_like_data_payload_passes_through_as_string() {
+    let p = "<script>alert(1)</script>";
+    let r = action_from_keydown(&el_with_payload("Escape", p), &input("Escape", NONE)).unwrap();
+    assert_eq!(r.action_ref.payload, p);
+}

@@ -39,7 +39,7 @@
 //!
 //! `data-action-keydown`（action 名）・`data-keys`（対象キー）・
 //! `data-keydown-prevent-default`・`data-keydown-ignore-repeat`（いずれも opt-in）の解釈、キー絞り込み、IME 変換中の除外、
-//! payload 書式は web-sys 非依存の純粋関数（[`action_from_keydown`] ほか）として本モジュールに置く。
+//! payload（`data-payload` 優先、無ければキーの正規トークン、#3764）は web-sys 非依存の純粋関数（[`action_from_keydown`] ほか）として本モジュールに置く。
 //! リスナー登録・祖先探索・`preventDefault()` の実呼び出し・部品専用配線との優先順位・
 //! feature は #3754 の配線層で扱う。
 
@@ -740,6 +740,8 @@ pub fn is_composing_keydown(is_composing: bool, key_code: u32) -> bool {
 
 /// 押されたキーを `data-keys` と同じ文法の正規トークン文字列にする（payload 用）。
 ///
+/// 対象要素に `data-payload` が無いときの payload フォールバック値（イシュー #3764）。
+///
 /// 修飾キーは `Control+Alt+Shift+Meta` の固定順、`" "` は `Space`、`"+"` は `Plus`。
 /// 照合成功後にだけ作るため、常に文法上妥当な文字列になる。
 #[must_use]
@@ -783,7 +785,7 @@ pub fn ignore_repeat_from_attr(value: Option<&str>) -> bool {
 /// [`action_from_keydown`] の成功結果。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeydownAction {
-    /// dispatch へ渡す action 名と payload（押されたキーの正規トークン）。
+    /// dispatch へ渡す action 名と payload（`data-payload`、無ければ押されたキーの正規トークン）。
     pub action_ref: ActionRef,
     /// 配線層（#3754）が `preventDefault()` を呼ぶべきか。照合成功時にだけ意味を持つ。
     pub prevent_default: bool,
@@ -798,6 +800,7 @@ pub struct KeydownAction {
 /// #3754 の配線層が `closest("[data-action-keydown]")` で見つけた要素を渡す。判定順:
 /// IME 変換中は `None` → action 名が無い/空なら `None` → `data-keys` が無い/不正なら
 /// `None` → どのトークンにも一致しなければ `None` → 一致で `Some`。修飾キーは完全一致。
+/// payload は要素の `data-payload` を優先し、無ければキーの正規トークンとする（click と値をそろえる）。
 /// 自動リピートの判定は一致確定後に行い、抑止時も `Some`（`repeat_suppressed == true`）を返す
 /// （`preventDefault` を維持するため）。
 /// 同一要素上の部品専用配線との優先順位は配線層の責務でありここでは扱わない。
@@ -823,7 +826,12 @@ pub fn action_from_keydown<T: AttrSource>(
         repeat_suppressed,
         action_ref: ActionRef {
             action,
-            payload: keydown_payload(input.key, input.modifiers),
+            // click 経路（`action_from_click`）と同じ `data-payload` を優先し、属性が無いときだけ
+            // キーの正規トークンへフォールバックする（イシュー #3764、設計記録 §40.6）。
+            // 空属性も「属性あり」として空文字列をそのまま使う。
+            payload: target
+                .attr("data-payload")
+                .unwrap_or_else(|| keydown_payload(input.key, input.modifiers)),
         },
         prevent_default: prevent_default_from_attr(
             target.attr(KEYDOWN_PREVENT_DEFAULT_ATTR).as_deref(),
