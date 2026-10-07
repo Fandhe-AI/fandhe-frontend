@@ -628,3 +628,63 @@ feature を含む）で `fandhe-frontend-wasm-full` へ feature を追加する�
   必須チェック」節）に追随更新（マニフェスト更新＋ruleset PUT）を要する
   運用コストが根拠であり、既存 2 ジョブへの行追加で完結することを確認
   する。
+
+## 12. keyed list の更新の挙動と注意点（イシュー #3755）
+
+keyed list（`keyed_list()` が返す `data-bind-list` 付きのコンテナ）の更新には、
+利用者がつまずきやすい挙動が 2 つあります。どちらも意図した仕様です。
+
+### 12.1 親要素の属性は `view()` に書く
+
+keyed list の field が dirty になる更新のたびに、親要素の属性は `view()` が返す
+属性列へ同期されます。`view()` に無い属性は削除されます。JS などで後から付けた
+`aria-live`・class・`data-*`、layout FLIP の opt-in 属性 `data-fandhe-flip-auto`
+（§3）も対象です。
+
+- 要素そのものは置き換わらず、ノードの同一性は保たれます。例外は親要素のタグが
+  変わる更新と、構造フォールバック（root 配下の作り直し）です。
+- `view()` も出している属性の値を外部で書き換えた場合は、次の dirty 更新で
+  `view()` の値へ戻ります。
+- 他の field だけが変わる更新では、この親要素の同期は走りません。
+- 子アイテム（`data-key` 要素）も、内容が変わった更新で同じ同期を受けます。
+- 理由は、SSR hydrate 由来のドリフトを確実に収束させることと、イベントハンドラ・
+  URL・`srcset` を毎回検証して書き戻す REQ-1 の自己修復を保つことです。
+
+親要素に必要な属性は、後から付けずに `view()` 側で渡してください。
+
+```rust
+// 悪い例: view() の外（JS など）で付けた属性は次の更新で消える
+// element.setAttribute("aria-live", "polite");
+
+// 良い例: view() の attrs に含める
+let list = keyed_list("ul", vec![("aria-live", "polite")], "log", items);
+```
+
+### 12.2 項目数の上限と超過時の挙動
+
+項目数は 4,096 件（`MAX_KEYED_LIST_ITEMS`）、キー文字列の合計は 262,144 バイト
+（`MAX_KEYED_LIST_KEY_BYTES`）までです。超えると `keyed_list()` が
+`KeyedListError::TooManyItems` または `KeyedListError::KeyBytesExceeded` の `Err`
+を返します。上限は SSR / SSG / CSR の全ターゲットに一律で掛かります。
+
+`Component::view` は `Result` を返せないため、`Err` の扱いはアプリ側の責務です。
+
+- `expect()` / `unwrap()` すると wasm が panic し、インスタンスが停止します。
+  以後のイベントは処理されません。
+- `data-bind-list` を持たないプレーンな `ul` へフォールバックすると、表示は
+  壊れません。ただし keyed 差分更新が使えず、更新のたびに root 配下を作り直す
+  ため、ノード同一性とフォーカスの保持を失います。参照例は
+  `fandhe-frontend-interactive` の `AppState` です。
+
+### 12.3 推奨
+
+- 上限に近づく前にページングする。
+- 長いログは末尾 N 件だけを keyed list にし、古い分は捨てるか、非 keyed の静的な
+  節へ移す。
+- 1 つのリストに詰め込まず、field 名の異なる複数の keyed list に分ける
+  （上限はリストごとに掛かります）。
+- `Err` は必ず明示的に扱い、フォールバック表示（件数超過の案内など）を `view()`
+  で返す。ログへキー値や項目の中身を出さない。
+
+上限定数は HashDoS 対策の防御のため、引き上げたり `keyed_list()` を迂回したり
+しないでください。
