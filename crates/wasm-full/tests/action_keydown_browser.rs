@@ -468,3 +468,320 @@ fn ignore_repeat_keeps_prevent_default_but_skips_dispatch() {
     assert!(prevented);
     assert_eq!(f.runtime.component().counter, before);
 }
+// ---- document/window 部品との排他（イシュー #3768、設計記録 §41.5 方式 2b）----
+//
+// overlay の Escape・sidebar の Cmd/Ctrl+B と Escape・command の Ctrl/Cmd+K は root の bubble
+// より後に動くため、部品が消費する keydown では汎用 action を見送り、部品が単独で処理する。
+// 各ケースは「部品だけが動く」と「汎用 action が動かない」を同時に表明し、部品が消費しない
+// 状況（閉じた overlay・無効化・dialog なし）では従来どおり汎用 action だけが動くことも固定する。
+
+use fandhe_frontend_wasm_full::overlay::OverlayCloseController;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+fn element_with(document: &Document, tag: &str, attrs: &[(&str, &str)]) -> Element {
+    let element = document.create_element(tag).expect("create_element");
+    for (name, value) in attrs {
+        element.set_attribute(name, value).expect("set_attribute");
+    }
+    element
+}
+
+fn current_document() -> Document {
+    web_sys::window().unwrap().document().unwrap()
+}
+
+/// `target` へクリック回数を数えるリスナーを付けて回数のセルを返す。
+fn count_clicks(target: &Element) -> Rc<Cell<u32>> {
+    let count = Rc::new(Cell::new(0));
+    let counter = count.clone();
+    let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+        counter.set(counter.get() + 1);
+    });
+    target
+        .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+        .unwrap();
+    closure.forget();
+    count
+}
+
+type CloseLog = Rc<RefCell<Vec<usize>>>;
+
+fn overlay_controller(document: &Document) -> (OverlayCloseController, CloseLog) {
+    let log: CloseLog = Rc::new(RefCell::new(Vec::new()));
+    let sink = log.clone();
+    let controller = OverlayCloseController::new(document, move |request| {
+        sink.borrow_mut().push(request.index);
+    })
+    .expect("OverlayCloseController::new");
+    (controller, log)
+}
+
+#[wasm_bindgen_test]
+fn overlay_escape_is_exclusive_with_generic_action() {
+    let f = mount_fixture("keydown-claim-overlay-root");
+    declare(&f.input, "set_draft", "Escape");
+    let document = current_document();
+    let (controller, log) = overlay_controller(&document);
+    let content = element_with(&document, "div", &[("data-scope", "dialog")]);
+    f.placeholder.append_child(&content).unwrap();
+    let index = controller
+        .push_overlay(&content, None)
+        .expect("known scope");
+
+    press(&f.input, "Escape", plain());
+    assert_eq!(log.borrow().as_slice(), &[0], "overlay closes");
+    assert_eq!(f.runtime.component().draft, "", "generic action is skipped");
+
+    controller.remove_overlay(index);
+    press(&f.input, "Escape", plain());
+    assert_eq!(log.borrow().len(), 1, "overlay no longer registered");
+    assert_eq!(f.runtime.component().draft, "Escape", "generic takes over");
+}
+
+#[wasm_bindgen_test]
+fn overlay_topmost_opt_out_leaves_escape_to_generic_action() {
+    let f = mount_fixture("keydown-claim-overlay-optout-root");
+    declare(&f.input, "set_draft", "Escape");
+    let document = current_document();
+    let (controller, log) = overlay_controller(&document);
+    let content = element_with(
+        &document,
+        "div",
+        &[("data-scope", "dialog"), ("data-close-on-escape", "false")],
+    );
+    f.placeholder.append_child(&content).unwrap();
+    controller
+        .push_overlay(&content, None)
+        .expect("known scope");
+
+    press(&f.input, "Escape", plain());
+    assert!(log.borrow().is_empty(), "opt-out overlay does not close");
+    assert_eq!(f.runtime.component().draft, "Escape");
+}
+
+#[wasm_bindgen_test]
+fn dropped_overlay_controller_no_longer_claims_escape() {
+    let f = mount_fixture("keydown-claim-overlay-drop-root");
+    declare(&f.input, "set_draft", "Escape");
+    let document = current_document();
+    let (controller, _log) = overlay_controller(&document);
+    let content = element_with(&document, "div", &[("data-scope", "dialog")]);
+    f.placeholder.append_child(&content).unwrap();
+    controller
+        .push_overlay(&content, None)
+        .expect("known scope");
+    drop(controller);
+
+    press(&f.input, "Escape", plain());
+    assert_eq!(f.runtime.component().draft, "Escape");
+}
+
+/// root 内へ sidebar（provider > trigger）を足して配線し、trigger のクリック回数を返す。
+fn mount_sidebar_in(f: &Fixture, query: &str, trigger_disabled: bool) -> (Element, Rc<Cell<u32>>) {
+    let document = current_document();
+    let provider = element_with(
+        &document,
+        "div",
+        &[
+            ("data-scope", "sidebar"),
+            ("data-part", "provider"),
+            ("data-state", "collapsed"),
+        ],
+    );
+    let trigger = element_with(
+        &document,
+        "button",
+        &[("data-scope", "sidebar"), ("data-part", "trigger")],
+    );
+    if trigger_disabled {
+        trigger.set_attribute("data-disabled", "").unwrap();
+    }
+    provider.append_child(&trigger).unwrap();
+    f.placeholder.append_child(&provider).unwrap();
+    let clicks = count_clicks(&trigger);
+    fandhe_frontend_wasm_full::sidebar::wire_sidebar_events_with_query(
+        f.placeholder.clone(),
+        query,
+    )
+    .expect("wire_sidebar_events_with_query");
+    (provider, clicks)
+}
+
+fn ctrl() -> Mods {
+    Mods {
+        ctrl: true,
+        ..plain()
+    }
+}
+
+#[wasm_bindgen_test]
+fn sidebar_ctrl_b_is_exclusive_with_generic_action() {
+    let f = mount_fixture("keydown-claim-sidebar-toggle-root");
+    declare(&f.input, "set_draft", "Control+b");
+    let (_provider, clicks) = mount_sidebar_in(&f, "(max-width: 0px)", false);
+
+    press(&f.input, "b", ctrl());
+    assert_eq!(clicks.get(), 1, "sidebar toggles via trigger click");
+    assert_eq!(f.runtime.component().draft, "", "generic action is skipped");
+}
+
+#[wasm_bindgen_test]
+fn sidebar_ctrl_b_with_disabled_trigger_falls_back_to_generic_action() {
+    let f = mount_fixture("keydown-claim-sidebar-disabled-root");
+    declare(&f.input, "set_draft", "Control+b");
+    let (_provider, clicks) = mount_sidebar_in(&f, "(max-width: 0px)", true);
+
+    press(&f.input, "b", ctrl());
+    assert_eq!(clicks.get(), 0);
+    assert_eq!(f.runtime.component().draft, "Control+b");
+}
+
+#[wasm_bindgen_test]
+fn sidebar_escape_on_open_mobile_drawer_is_exclusive_but_closed_drawer_is_not() {
+    let f = mount_fixture("keydown-claim-sidebar-escape-root");
+    declare(&f.input, "set_draft", "Escape");
+    // 常時モバイルのクエリで配線してから、drawer を開いた状態へ属性を直接設定する。
+    let (provider, clicks) = mount_sidebar_in(&f, "(min-width: 1px)", false);
+
+    provider.set_attribute("data-mobile", "").unwrap();
+    provider.set_attribute("data-state", "expanded").unwrap();
+    press(&f.input, "Escape", plain());
+    assert_eq!(clicks.get(), 1, "sidebar dismisses the drawer");
+    assert_eq!(f.runtime.component().draft, "", "generic action is skipped");
+
+    provider.set_attribute("data-state", "collapsed").unwrap();
+    press(&f.input, "Escape", plain());
+    assert_eq!(clicks.get(), 1, "closed drawer is not dismissed again");
+    assert_eq!(f.runtime.component().draft, "Escape", "generic takes over");
+}
+
+#[wasm_bindgen_test]
+fn sidebar_escape_on_open_drawer_with_disabled_trigger_falls_back_to_generic_action() {
+    let f = mount_fixture("keydown-claim-sidebar-escape-disabled-root");
+    declare(&f.input, "set_draft", "Escape");
+    let (provider, clicks) = mount_sidebar_in(&f, "(min-width: 1px)", true);
+
+    provider.set_attribute("data-mobile", "").unwrap();
+    provider.set_attribute("data-state", "expanded").unwrap();
+    press(&f.input, "Escape", plain());
+    assert_eq!(clicks.get(), 0, "disabled trigger cannot dismiss");
+    assert_eq!(f.runtime.component().draft, "Escape", "generic takes over");
+}
+
+/// root 内へ command（root > dialog）を足して配線し、dispatch された action 名の記録を返す。
+fn mount_command_in(
+    f: &Fixture,
+    root_disabled: bool,
+    with_dialog: bool,
+) -> Rc<RefCell<Vec<String>>> {
+    let document = current_document();
+    let command_root = element_with(
+        &document,
+        "div",
+        &[("data-scope", "command"), ("data-part", "root")],
+    );
+    if root_disabled {
+        command_root.set_attribute("data-disabled", "").unwrap();
+    }
+    if with_dialog {
+        let dialog = element_with(
+            &document,
+            "div",
+            &[("data-scope", "command"), ("data-part", "dialog")],
+        );
+        command_root.append_child(&dialog).unwrap();
+    }
+    f.placeholder.append_child(&command_root).unwrap();
+    let log = Rc::new(RefCell::new(Vec::new()));
+    let sink = log.clone();
+    fandhe_frontend_wasm_full::command::wire_command_events(f.placeholder.clone(), move |action| {
+        sink.borrow_mut().push(action.action);
+    })
+    .expect("wire_command_events");
+    log
+}
+
+#[wasm_bindgen_test]
+fn command_ctrl_k_is_exclusive_with_generic_action() {
+    let f = mount_fixture("keydown-claim-command-root");
+    declare(&f.input, "set_draft", "Control+k");
+    let log = mount_command_in(&f, false, true);
+
+    press(&f.input, "k", ctrl());
+    assert_eq!(log.borrow().as_slice(), ["toggle"], "command toggles");
+    assert_eq!(f.runtime.component().draft, "", "generic action is skipped");
+}
+
+#[wasm_bindgen_test]
+fn command_ctrl_k_without_dialog_or_when_disabled_falls_back_to_generic_action() {
+    let f = mount_fixture("keydown-claim-command-nodialog-root");
+    declare(&f.input, "set_draft", "Control+k");
+    let log = mount_command_in(&f, false, false);
+    press(&f.input, "k", ctrl());
+    assert!(log.borrow().is_empty());
+    assert_eq!(f.runtime.component().draft, "Control+k");
+
+    let g = mount_fixture("keydown-claim-command-disabled-root");
+    declare(&g.input, "set_draft", "Control+k");
+    let log = mount_command_in(&g, true, true);
+    press(&g.input, "k", ctrl());
+    assert!(log.borrow().is_empty());
+    assert_eq!(g.runtime.component().draft, "Control+k");
+}
+
+/// 同じ root に先に登録された別リスナーが `stopPropagation()` 済みなら、document/window の
+/// 部品ハンドラには届かない。消費述語が真でも汎用 action へ進む（従来挙動の維持）。
+#[wasm_bindgen_test]
+fn stop_propagation_before_generic_keydown_skips_claim_and_runs_generic_action() {
+    let id = "keydown-claim-stopped-root";
+    let document = current_document();
+    let placeholder = create_placeholder(&document, id);
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+    // `Runtime::mount` の汎用 keydown リスナーより先に root へ登録する。
+    let stopper = Closure::<dyn FnMut(Event)>::new(|event: Event| event.stop_propagation());
+    placeholder
+        .add_event_listener_with_callback("keydown", stopper.as_ref().unchecked_ref())
+        .unwrap();
+    let runtime = Runtime::mount(id, AppState::new()).expect("mount must succeed");
+    let input = placeholder.query_selector("#draft-input").unwrap().unwrap();
+    declare(&input, "set_draft", "Control+k");
+    let f = Fixture {
+        placeholder: placeholder.clone(),
+        _cleanup: RemoveOnDrop(placeholder.clone()),
+        runtime,
+        input,
+    };
+    let log = mount_command_in(&f, false, true);
+
+    press(&f.input, "k", ctrl());
+    assert!(
+        log.borrow().is_empty(),
+        "document handler never receives it"
+    );
+    assert_eq!(
+        f.runtime.component().draft,
+        "Control+k",
+        "generic action runs"
+    );
+}
+
+#[wasm_bindgen_test]
+fn unclaimed_keys_still_reach_generic_action_with_components_wired() {
+    let f = mount_fixture("keydown-claim-regression-root");
+    declare(&f.input, "set_draft", "Control+j Escape");
+    let document = current_document();
+    let (_controller, log) = overlay_controller(&document);
+    let log_cmd = mount_command_in(&f, false, true);
+    let (_provider, clicks) = mount_sidebar_in(&f, "(max-width: 0px)", false);
+
+    // 無関係なキーは claim されず従来どおり汎用 action が動く。
+    press(&f.input, "j", ctrl());
+    assert_eq!(f.runtime.component().draft, "Control+j");
+    // overlay が空なら Escape も汎用が受ける（sidebar は閉じた drawer、overlay は未登録）。
+    press(&f.input, "Escape", plain());
+    assert_eq!(f.runtime.component().draft, "Escape");
+    assert!(log.borrow().is_empty());
+    assert!(log_cmd.borrow().is_empty());
+    assert_eq!(clicks.get(), 0);
+}

@@ -362,6 +362,17 @@ pub fn escape_close_index(stack: &[OverlayEntry]) -> Option<usize> {
     topmost.close_on_escape.then_some(last_index)
 }
 
+/// document の keydown が overlay の Escape 閉鎖に消費されるかを判定する純粋関数
+/// （イシュー #3768、汎用 keydown 配線との排他の述語。設計記録 §41.5）。
+///
+/// `key == "Escape"` かつ [`escape_close_index`] が `Some`（最上位が `close_on_escape`）のとき真。
+/// 最上位が opt-out のときは偽で、汎用配線がその Escape を受ける。実際の閉鎖判定と同じ
+/// [`escape_close_index`] を再利用するため、スタック規則の二重管理は生じない。
+#[must_use]
+pub fn overlay_consumes_keydown(key: &str, stack: &[OverlayEntry]) -> bool {
+    key == "Escape" && escape_close_index(stack).is_some()
+}
+
 /// 外側インタラクション（pointerdown 等）で閉鎖すべきエントリの index 一覧
 /// （最上位から順）を判定する。
 ///
@@ -552,6 +563,9 @@ mod wiring {
         stack: std::rc::Rc<std::cell::RefCell<Vec<MountedOverlay>>>,
         keydown_closure: Closure<dyn FnMut(Event)>,
         pointerdown_closure: Closure<dyn FnMut(Event)>,
+        /// 汎用 keydown 配線との排他用の述語登録（[`Drop`] で解除する、イシュー #3768）。
+        #[cfg(feature = "action-keydown")]
+        claim_handle: crate::keydown_claim::ClaimHandle,
     }
 
     impl OverlayCloseController {
@@ -677,11 +691,39 @@ mod wiring {
                 return Err(err);
             }
 
+            // 汎用 keydown 配線（`action-keydown`）が Escape を dispatch する前に問い合わせる
+            // 述語。閉鎖判定と同じ `overlay_consumes_keydown` を再利用する。借用できない
+            // （再入）ときは偽（従来動作）に倒す。登録は `Drop` で対称に解除する。
+            #[cfg(feature = "action-keydown")]
+            let claim_handle = {
+                let claim_stack = stack.clone();
+                let claim_document = document.clone();
+                crate::keydown_claim::register(std::rc::Rc::new(move |input| {
+                    // このコントローラの Document に届いたイベントだけを消費対象にする
+                    // （別 Document の overlay が親 Document の汎用 action を抑止しない）。
+                    if !input.is_document(&claim_document) {
+                        return crate::keydown_claim::Verdict::Passes;
+                    }
+                    let Ok(stack_ref) = claim_stack.try_borrow() else {
+                        return crate::keydown_claim::Verdict::Passes;
+                    };
+                    let entries: Vec<OverlayEntry> =
+                        stack_ref.iter().map(|mounted| mounted.entry).collect();
+                    if super::overlay_consumes_keydown(input.key, &entries) {
+                        crate::keydown_claim::Verdict::Consumes
+                    } else {
+                        crate::keydown_claim::Verdict::Passes
+                    }
+                }))
+            };
+
             Ok(Self {
                 document: document.clone(),
                 stack,
                 keydown_closure,
                 pointerdown_closure,
+                #[cfg(feature = "action-keydown")]
+                claim_handle,
             })
         }
 
@@ -754,6 +796,8 @@ mod wiring {
         /// の 2 回のみ、解除もここでの 2 回のみで完結し、`Closure::forget` を
         /// 使わない。本型の doc 冒頭参照）。
         fn drop(&mut self) {
+            #[cfg(feature = "action-keydown")]
+            crate::keydown_claim::unregister(self.claim_handle);
             let _ = self.document.remove_event_listener_with_callback(
                 "keydown",
                 self.keydown_closure.as_ref().unchecked_ref(),
@@ -1134,6 +1178,35 @@ mod tests {
         ];
         let contains_target = [false, false];
         assert_eq!(outside_close_indices(&stack, &contains_target), vec![1, 0]);
+    }
+
+    // --- overlay_consumes_keydown（イシュー #3768）---
+
+    #[test]
+    fn overlay_consumes_keydown_empty_stack_is_false() {
+        assert!(!overlay_consumes_keydown("Escape", &[]));
+    }
+
+    #[test]
+    fn overlay_consumes_keydown_escape_with_closable_topmost() {
+        let stack = [entry(OverlayKind::Dialog, true, true)];
+        assert!(overlay_consumes_keydown("Escape", &stack));
+    }
+
+    #[test]
+    fn overlay_consumes_keydown_topmost_opt_out_is_false() {
+        let stack = [
+            entry(OverlayKind::Dialog, true, true),
+            entry(OverlayKind::Popover, false, true),
+        ];
+        assert!(!overlay_consumes_keydown("Escape", &stack));
+    }
+
+    #[test]
+    fn overlay_consumes_keydown_other_keys_are_false() {
+        let stack = [entry(OverlayKind::Dialog, true, true)];
+        assert!(!overlay_consumes_keydown("Enter", &stack));
+        assert!(!overlay_consumes_keydown("escape", &stack));
     }
 
     // --- escape_close_index ---

@@ -276,6 +276,17 @@ pub fn is_toggle_shortcut(key: &str, modifiers: Modifiers) -> bool {
     key.eq_ignore_ascii_case("k") && (modifiers.ctrl ^ modifiers.meta) && !modifiers.alt
 }
 
+/// window 上の keydown が dialog 開閉ショートカットとして処理されうるかを判定する純粋関数
+/// （イシュー #3768）。[`is_toggle_shortcut`] に Shift 併用の除外を足したもので、実ハンドラ
+/// （配線層の `handle_document_keydown`）と汎用 keydown 配線との排他の述語の双方が使う。
+///
+/// [`Modifiers`]（`crate::keynav`）は Shift を追跡しないため、Ctrl+Shift+K 等を対象外とする
+/// 判定は `shift` を別引数で受けてここに集約する。
+#[must_use]
+pub fn is_document_toggle(key: &str, modifiers: Modifiers, shift: bool) -> bool {
+    !shift && is_toggle_shortcut(key, modifiers)
+}
+
 /// `visible` 列の中で 1 件でも可視な item を含むグループかどうかを判定する
 /// 純粋関数（group の `hidden` 反映用）。`item_count` はそのグループが
 /// 含む item の総数（0 件のグループ、例えば見出しのみのプレースホルダは
@@ -288,6 +299,50 @@ pub fn group_should_hide(item_count: usize, visible_count: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_document_toggle_requires_no_shift() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        assert!(is_document_toggle("k", ctrl, false));
+        assert!(is_document_toggle("K", ctrl, false));
+        assert!(!is_document_toggle("k", ctrl, true));
+    }
+
+    #[test]
+    fn is_document_toggle_rejects_alt_and_both_ctrl_meta() {
+        let ctrl_alt = Modifiers {
+            ctrl: true,
+            alt: true,
+            ..Modifiers::default()
+        };
+        let both = Modifiers {
+            ctrl: true,
+            meta: true,
+            ..Modifiers::default()
+        };
+        assert!(!is_document_toggle("k", ctrl_alt, false));
+        assert!(!is_document_toggle("k", both, false));
+        assert!(!is_document_toggle("k", Modifiers::default(), false));
+        assert!(!is_document_toggle(
+            "j",
+            Modifiers {
+                meta: true,
+                ..Modifiers::default()
+            },
+            false
+        ));
+        assert!(is_document_toggle(
+            "k",
+            Modifiers {
+                meta: true,
+                ..Modifiers::default()
+            },
+            false
+        ));
+    }
 
     fn mods() -> Modifiers {
         Modifiers::default()
@@ -420,7 +475,7 @@ mod tests {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        command_key_action, is_toggle_shortcut, ACTION_CLOSE, ACTION_DESELECT, ACTION_EXECUTE,
+        command_key_action, is_document_toggle, ACTION_CLOSE, ACTION_DESELECT, ACTION_EXECUTE,
         ACTION_INPUT, ACTION_SELECT, ACTION_TOGGLE,
     };
     use crate::events::{ActionRef, AttrSource};
@@ -673,6 +728,34 @@ mod wiring {
         if let Some(window) = web_sys::window() {
             let document = window.document();
             if let Some(document) = document {
+                // 汎用 keydown 配線（`action-keydown`）との排他用の述語（イシュー #3768、設計記録
+                // §41.5）。実ハンドラと同じ [`is_document_toggle`]・[`toggle_target`] を使う。
+                // 切断中は `Passes` を返し、再挿入で再開する。
+                #[cfg(feature = "action-keydown")]
+                {
+                    use crate::keydown_claim::{register, KeydownClaimInput, Verdict};
+                    let claim_root = root.clone();
+                    let claim_document = document.clone();
+                    register(std::rc::Rc::new(move |input: &KeydownClaimInput| {
+                        // 切断中・別 Document のイベントは消費しない。述語は実リスナーと同じ
+                        // 寿命で残し、再挿入されれば判定を再開する。
+                        if !claim_root.is_connected() || !input.is_document(&claim_document) {
+                            return Verdict::Passes;
+                        }
+                        let modifiers = crate::keynav::Modifiers {
+                            ctrl: input.ctrl,
+                            alt: input.alt,
+                            meta: input.meta,
+                        };
+                        if is_document_toggle(input.key, modifiers, input.shift)
+                            && toggle_target(&claim_root).is_some()
+                        {
+                            Verdict::Consumes
+                        } else {
+                            Verdict::Passes
+                        }
+                    }));
+                }
                 let doc_root = root;
                 let doc_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
                     handle_document_keydown(&document, &doc_root, &event, &on_action);
@@ -2079,6 +2162,23 @@ mod wiring {
         }
     }
 
+    /// Cmd/Ctrl+K の対象になる有効な Command インスタンス root を解決する。
+    ///
+    /// `root` 配下の `dialog` パーツから `resolve_instance_root` で Command インスタンスを解決し
+    /// （越境防止のため `root` に含まれることも確認する fail-closed 実装）、
+    /// `has_disabled_ancestor` による `data-disabled` 無効化契約を満たすときのみ `Some` を返す
+    /// （codex-review P1 是正: `handle_keydown`/`handle_input`/`handle_click` と同じ契約）。
+    /// [`handle_document_keydown`] と、汎用 keydown 配線との排他の述語（[`wire_command_events`]
+    /// が登録）が共有する。
+    fn toggle_target(root: &Element) -> Option<Element> {
+        let dialog = root.query_selector(DIALOG_SELECTOR).ok().flatten()?;
+        let instance_root = resolve_instance_root(root, &dialog)?;
+        if has_disabled_ancestor(root, &instance_root) {
+            return None;
+        }
+        Some(instance_root)
+    }
+
     /// document 上の keydown: Cmd/Ctrl+K を判定し、`root` 配下に `dialog`
     /// パーツが存在するときのみ [`ACTION_TOGGLE`] を dispatch する。発火後
     /// は生きた DOM で `dialog` を再解決し、open なら絞り込み・選択状態を
@@ -2107,39 +2207,15 @@ mod wiring {
             return;
         }
         let modifiers = modifiers_of(keyboard_event);
-        // Shift 併用（例: Ctrl+Shift+K）は対象外とする（Cursor Bugbot
-        // 是正）。[`Modifiers`]（`crate::keynav`）は Shift を追跡しない
-        // 共有型（同型 doc「Shift は許容する」節、他コンポーネントの矢印
-        // ナビゲーション等では無害だが本ショートカットには波及させない）
-        // ため、`is_toggle_shortcut` へは渡さず `KeyboardEvent` から直接
-        // 判定する。Shift 付きはブラウザ/OS 側のショートカット
-        // （例: ページ内検索の一部実装）と衝突しうる組み合わせであり、
-        // `Ctrl+Alt+K`/`Ctrl+Meta+K` を対象外とする既存方針と同じ判断軸
-        // で誤発火を避ける。
-        if keyboard_event.shift_key() {
+        // Shift 併用（例: Ctrl+Shift+K）は対象外とする（Cursor Bugbot 是正）。判定は
+        // 純粋関数 [`is_document_toggle`] に集約し、汎用 keydown 配線との排他の述語と共有する
+        // （[`Modifiers`] は Shift を追跡しない共有型のため別引数で渡す）。
+        if !is_document_toggle(&keyboard_event.key(), modifiers, keyboard_event.shift_key()) {
             return;
         }
-        if !is_toggle_shortcut(&keyboard_event.key(), modifiers) {
-            return;
-        }
-        let Some(dialog) = root.query_selector(DIALOG_SELECTOR).ok().flatten() else {
-            return;
-        };
-        // Command インスタンス（`dialog` の最も近い `ROOT_SELECTOR` 祖先）を
-        // 解決し、`has_disabled_ancestor` で無効化契約を確認する
-        // （codex-review P1 是正: 従来は dialog の存在だけで toggle を
-        // dispatch していたため、`handle_keydown`/`handle_input`/
-        // `handle_click` が採用する `data-disabled` 無効化契約と不整合
-        // だった。`root` へ `data-disabled` を付けても Cmd/Ctrl+K で開閉・
-        // フォーカス移動できてしまう不具合の是正）。`resolve_instance_root`
-        // は越境防止のため `wired_root`（`root`）に含まれることも確認する
-        // fail-closed 実装であり、解決できない（改ざん・越境等）場合も
-        // 他ハンドラ（`handle_keydown`/`handle_click`）と同型に no-op へ
-        // 倒す。
-        let Some(instance_root) = resolve_instance_root(root, &dialog) else {
-            return;
-        };
-        if has_disabled_ancestor(root, &instance_root) {
+        // dialog・Command インスタンス解決と `data-disabled` 無効化契約の確認は
+        // [`toggle_target`] に集約している（述語と実処理で同じ解決を使う、イシュー #3768）。
+        if toggle_target(root).is_none() {
             return;
         }
         // ショートカット一致が確定した時点で `prevent_default()` を呼ぶ

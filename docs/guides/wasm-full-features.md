@@ -122,6 +122,14 @@ keydown は通ります。`data-keydown-prevent-default` も付けていれば r
 ペイロードは、要素に `data-payload` を付ければ click と同じ値になります（0.45.0 で追加、
 イシュー #3764）。付けない場合は従来どおりキーの正規トークン（例: `Control+Enter`）で、
 付けるとキー情報は payload に入りません。
+document/window に登録される部品の keydown とは排他になります（0.46.0 で追加、
+イシュー #3768）。overlay（`OverlayCloseController`）の Escape（最上位が
+`close_on_escape` のとき）、sidebar の Cmd/Ctrl+B（有効な trigger/rail があるとき）と
+Escape（モバイル drawer または開いている menu-button tooltip があるとき）、command の
+Ctrl/Cmd+K（Shift・Alt なし、有効な dialog があるとき）では、部品が消費するため汎用
+action は見送られ（`preventDefault()` も呼ばれません）、部品だけが動きます。部品が消費しない
+状況（overlay が閉じている・最上位が opt-out・trigger が無効・dialog がない等）や、
+`OverlayCloseController` を使わない構成では従来どおり汎用 action が動きます。
 `entry.rs` の参照実装（`mount`/`hydrate`）は `Runtime::mount`/`hydrate` を呼ぶため、
 この配線は追加コードなしで有効になります（`AppState` では `increment` 等に加え、
 `data-payload` を付ければ `set_draft`・`remove_item` も keydown で使えます）。
@@ -427,6 +435,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
 | 0.43.0 | `action-keydown` feature（イシュー #3754）。汎用 keydown 配線を `Runtime::mount`/`hydrate` に追加 |
 | 0.45.0 | keydown action の payload を `data-payload` 優先に変更（イシュー #3764） |
+| 0.46.0 | overlay・sidebar・command が消費する keydown では汎用 keydown 配線が action を見送る（排他、イシュー #3768。これまで両方発火していた組み合わせが部品優先の片方のみになる） |
 | 0.40.4 | PR #2582 で origin/main（#2539 の `count-up` feature 統合で 0.40.3 到達）を再取り込み。本 PR 側も 0.40.3 のため同一版数の衝突として #638 条項に従い +1 して 0.40.4 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.1 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている

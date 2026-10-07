@@ -1409,16 +1409,20 @@ mod wiring {
     /// 不変条件）、冒頭で `default_prevented()` が真なら何もしない。部品専用配線が処理して
     /// `preventDefault` したキーは部品側が優先され、処理しなかったキーを本配線が受け取る。
     ///
-    /// この規則がカバーしないケース:
+    /// この規則がカバーしないケースは、document/window の部品との排他方式 2b（イシュー #3768、
+    /// 設計記録 §41.5）で扱う。overlay の `Escape`（document）・sidebar の Cmd/Ctrl+B と `Escape`
+    /// （document）・command の Ctrl/Cmd+K（window）は root の bubble より後に動くため
+    /// `defaultPrevented` では排他にできない。そこで各部品が [`crate::keydown_claim`] へ
+    /// 「この keydown を消費するか」の述語を登録し、本配線は照合成功後・`preventDefault` と
+    /// dispatch の前に問い合わせる。真なら何もせず（`preventDefault` もしない）部品が単独で処理する。
     ///
-    /// - `overlay::OverlayCloseController`（document の keydown）・command の Ctrl/Cmd+K
-    ///   （window）・sidebar の Cmd/Ctrl+B（document）は root の bubble より後に動くため、
-    ///   本配線が先に動く。`preventDefault` は伝播を止めず overlay は `defaultPrevented` を
-    ///   見ないので、汎用の `Escape` に opt-in を付けても overlay の閉鎖は従来どおり働き両方が
-    ///   動く。sidebar は `defaultPrevented` を見るため、opt-in した本配線があると処理を見送る。
+    /// - overlay の述語が `Escape` で真になるのは、`overlay::OverlayCloseController` を生成して
+    ///   閉鎖可能な overlay が登録されているとき（最上位が `close_on_escape` のとき）に限る。
+    ///   コントローラを使わない構成では従来どおり並行発火する。
     /// - keynav は Menu・Menubar の Escape で overlay に観測させるため意図的に
-    ///   `preventDefault` を呼ばない。汎用の `Escape` は keynav の後始末と並行して発火する。
-    ///   排他にしたい場合はオーバーレイを内包しない要素に `data-action-keydown` を置く。
+    ///   `preventDefault` を呼ばない。その overlay が上記コントローラに登録されていれば
+    ///   述語により排他になる。登録がない構成の汎用 `Escape` は keynav の後始末と並行して発火する。
+    ///   その場合に排他にしたいときはオーバーレイを内包しない要素に `data-action-keydown` を置く。
     ///
     /// # その他の契約
     ///
@@ -1475,6 +1479,22 @@ mod wiring {
             let Some(keydown) = action_from_keydown(&ElementAttrSource(&matched), &input) else {
                 return;
             };
+            // 部品（overlay・sidebar・command）がこの keydown を消費するなら見送る
+            // （方式 2b、設計記録 §41.5）。`preventDefault` も行わず部品が単独で処理する。
+            let event_document = matched.owner_document();
+            let claim_input = crate::keydown_claim::KeydownClaimInput {
+                document: event_document.as_ref().map(|doc| doc as &dyn std::any::Any),
+                key: &key,
+                ctrl: input.modifiers.ctrl,
+                alt: input.modifiers.alt,
+                shift: input.modifiers.shift,
+                meta: input.modifiers.meta,
+            };
+            // 先に登録された別リスナーが `stopPropagation()` 済みなら、document/window の
+            // 部品ハンドラにはイベントが届かない。消費述語を信用せず汎用処理へ進める。
+            if !event.cancel_bubble() && crate::keydown_claim::claims(&claim_input) {
+                return;
+            }
             if keydown.prevent_default {
                 event.prevent_default();
             }
