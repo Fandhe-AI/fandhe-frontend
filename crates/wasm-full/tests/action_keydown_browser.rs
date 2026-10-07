@@ -395,6 +395,7 @@ fn data_payload_script_stays_text() {
     assert_eq!(f.runtime.component().draft, p);
     assert!(f.placeholder.query_selector("script").unwrap().is_none());
 }
+
 fn repeating() -> Mods {
     Mods {
         repeat: true,

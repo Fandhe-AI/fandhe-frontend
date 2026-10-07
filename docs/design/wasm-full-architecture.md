@@ -3099,6 +3099,12 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 `Control+Alt+Shift+Meta` の固定順の正規トークン（例: `Control+Shift+Enter`、
 `Space`、`Plus`）として組み立てる。
 
+### 40.4 semver・テスト
+
+公開 API の純追加のため minor バンプ（0.41.0 → 0.42.0）。テストは
+`events.rs` 内単体テストと `crates/wasm-full/tests/keydown_native.rs`
+（native、一致・不一致・修飾キー・IME・不正値・preventDefault opt-in）で検証する。
+
 ### 40.5 自動リピートの抑止（イシュー #3763、親 #3762）
 
 - 属性名は `data-keydown-ignore-repeat`。当初候補の `data-keydown-repeat` は、付けると抑止される属性なのに
@@ -3130,12 +3136,6 @@ mod tests`、純粋ロジック層とヘッドレス出力ドリフト検知の�
 - `data-keys` 照合・IME 除外・`preventDefault`・`repeat_suppressed` の判定と順序は変えない。変わるのは `ActionRef.payload` の決定だけ。
 - 既存挙動の変更: `data-action-keydown` と `data-payload` を併記していた要素は、payload がキーのトークンから
   `data-payload` の値に変わる。0.x の破壊的変更として minor バンプ（0.44.0 → 0.45.0）。
-
-### 40.4 semver・テスト
-
-公開 API の純追加のため minor バンプ（0.41.0 → 0.42.0）。テストは
-`events.rs` 内単体テストと `crates/wasm-full/tests/keydown_native.rs`
-（native、一致・不一致・修飾キー・IME・不正値・preventDefault opt-in）で検証する。
 
 ## 41. 汎用 keydown 配線の配線層（イシュー #3754、親 #3752）
 

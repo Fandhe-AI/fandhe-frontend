@@ -278,6 +278,7 @@ fn ignore_repeat_attr_grammar() {
     assert!(!ignore_repeat_from_attr(Some("false")));
     assert!(!ignore_repeat_from_attr(Some("1")));
 }
+
 // ---- data-payload の合成（イシュー #3764、設計記録 §40.6）----
 
 fn el_with_payload(keys: &str, payload: &str) -> Fake {

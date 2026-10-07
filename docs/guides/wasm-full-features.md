@@ -425,8 +425,8 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
 | 0.40.3 | PR #2582 で origin/main（#2536 の `shared_layout`〔`layout-animation` feature 配下、feature 追加なし〕統合で 0.40.2 到達）を再取り込み。本 PR 側も 0.40.2 のため同一版数の衝突として #638 条項に従い +1 して 0.40.3 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.16.3 へ追随した |
 | 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
-| 0.45.0 | keydown action の payload を `data-payload` 優先に変更（イシュー #3764） |
 | 0.43.0 | `action-keydown` feature（イシュー #3754）。汎用 keydown 配線を `Runtime::mount`/`hydrate` に追加 |
+| 0.45.0 | keydown action の payload を `data-payload` 優先に変更（イシュー #3764） |
 | 0.40.4 | PR #2582 で origin/main（#2539 の `count-up` feature 統合で 0.40.3 到達）を再取り込み。本 PR 側も 0.40.3 のため同一版数の衝突として #638 条項に従い +1 して 0.40.4 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.1 へ追随した |
 
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
