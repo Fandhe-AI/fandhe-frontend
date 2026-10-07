@@ -1041,8 +1041,14 @@ where
     /// `data-action` 経路と同じ差分更新（束縛点の text・属性・class と
     /// keyed list）を当てる公開 API（イシュー #3751）。
     ///
+    /// 束縛点・keyed list に対応する dirty field だけが変わる場合は、
     /// [`Self::rerender`] と異なり `root` 配下を全置換しないため、フォーカス・
-    /// IME・入力途中の値・要素の参照が保たれる。タイマー、`postMessage`、
+    /// IME・入力途中の値・要素の参照が保たれる。束縛点にも keyed list にも
+    /// 対応しない dirty field（画面状態などの未束縛フィールド）を更新する
+    /// action では、`data-action` 経路と同じ構造フォールバック
+    /// （`Self::rerender_subtree`）が働いて `root` 配下が全置換され、これらは
+    /// 保たれない。要素保持が必要なら、更新対象のフィールドを束縛点または
+    /// keyed list として宣言すること。タイマー、`postMessage`、
     /// `storage` イベント等、DOM イベント以外の入力を `Component` へ届ける用途を想定する。
     ///
     /// # 戻り値
@@ -3532,8 +3538,10 @@ where
     /// ため、本メソッドで `root` 配下が丸ごと入れ替わっても再配線は不要
     /// である。
     ///
-    /// `root` 配下を全置換せずに action だけを当てたい場合（フォーカス・IME を
-    /// 保ちたいとき）は [`Self::dispatch_action`] を使うこと。
+    /// 束縛点・keyed list で表現できる更新に限り、`root` 配下を全置換せずに
+    /// action だけを当てたい場合（フォーカス・IME を保ちたいとき）は
+    /// [`Self::dispatch_action`] を使うこと（未束縛フィールドの更新では
+    /// 同 API も構造フォールバックで全置換する）。
     ///
     /// `component`/`root` の借用に失敗した場合（イベントハンドラ内からの
     /// 再入等）は no-op とする（`.claude/rules/coding-rust.md`、panic しない
