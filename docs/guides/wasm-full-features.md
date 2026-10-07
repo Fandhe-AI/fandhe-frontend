@@ -114,8 +114,12 @@ count-up-trigger="in-view"`）・`MutationObserver` による外部更新の再�
 `Runtime::mount`/`hydrate` の最後の配線として登録されるため、部品専用の keydown
 配線が `preventDefault` したキーはそちらが優先されます。`preventDefault()` は
 `data-keydown-prevent-default` の opt-in があるときだけ呼びます。IME 変換中は
-action になりません。詳細は `docs/design/wasm-full-architecture.md` §41 を参照して
-ください。
+action になりません。押しっぱなしの自動リピートを無視したい要素には
+`data-keydown-ignore-repeat`（空文字列または `true`、0.44.0 で追加、イシュー #3763）を
+付けます。2 回目以降の keydown（`KeyboardEvent.repeat`）だけ dispatch せず、最初の
+keydown は通ります。`data-keydown-prevent-default` も付けていれば repeat 中も
+`preventDefault()` は維持されます。属性なしの挙動は従来どおりです。詳細は
+`docs/design/wasm-full-architecture.md` §40.5・§41 を参照してください。
 
 `text-animation` feature（0.35.0 で追加、イシュー #2532）は `scroll-driver`/
 `confetti`/`hold-to-confirm`/`magnetic` と同型（配線群かつ

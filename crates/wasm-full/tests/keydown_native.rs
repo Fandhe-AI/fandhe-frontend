@@ -8,10 +8,10 @@
 use std::collections::HashMap;
 
 use fandhe_frontend_wasm_full::events::{
-    action_from_keydown, is_composing_keydown, keydown_payload, parse_keys,
-    prevent_default_from_attr, AttrSource, KeyModifiers, KeydownInput, KeysParseError,
-    ACTION_KEYDOWN_ATTR, KEYDOWN_PREVENT_DEFAULT_ATTR, KEYS_ATTR, MAX_KEYS_ATTR_LEN,
-    MAX_KEY_NAME_LEN, MAX_KEY_TOKENS,
+    action_from_keydown, ignore_repeat_from_attr, is_composing_keydown, keydown_payload,
+    parse_keys, prevent_default_from_attr, AttrSource, KeyModifiers, KeydownInput, KeysParseError,
+    ACTION_KEYDOWN_ATTR, KEYDOWN_IGNORE_REPEAT_ATTR, KEYDOWN_PREVENT_DEFAULT_ATTR, KEYS_ATTR,
+    MAX_KEYS_ATTR_LEN, MAX_KEY_NAME_LEN, MAX_KEY_TOKENS,
 };
 
 struct Fake(HashMap<String, String>);
@@ -37,6 +37,7 @@ fn input(key: &str, modifiers: KeyModifiers) -> KeydownInput<'_> {
         modifiers,
         is_composing: false,
         key_code: 0,
+        repeat: false,
     }
 }
 
@@ -192,4 +193,88 @@ fn prevent_default_is_opt_in() {
             .prevent_default
     );
     assert!(action_from_keydown(&t, &input("Enter", NONE)).is_none());
+}
+
+fn el_with(keys: &str, extra: &[(&str, &str)]) -> Fake {
+    let mut f = el(Some(keys));
+    for (k, v) in extra {
+        f.0.insert((*k).to_string(), (*v).to_string());
+    }
+    f
+}
+
+fn repeating(key: &str) -> KeydownInput<'_> {
+    KeydownInput {
+        repeat: true,
+        ..input(key, NONE)
+    }
+}
+
+#[test]
+fn repeat_is_not_suppressed_without_attr() {
+    let r = action_from_keydown(&el(Some("Enter")), &repeating("Enter")).unwrap();
+    assert!(!r.repeat_suppressed);
+}
+
+#[test]
+fn repeat_is_suppressed_with_opt_in_attr() {
+    for v in ["", "true"] {
+        let t = el_with("Enter", &[(KEYDOWN_IGNORE_REPEAT_ATTR, v)]);
+        assert!(
+            action_from_keydown(&t, &repeating("Enter"))
+                .unwrap()
+                .repeat_suppressed
+        );
+        // 最初の keydown（repeat == false）は抑止されない。
+        assert!(
+            !action_from_keydown(&t, &input("Enter", NONE))
+                .unwrap()
+                .repeat_suppressed
+        );
+    }
+}
+
+#[test]
+fn repeat_false_attr_value_does_not_suppress() {
+    let t = el_with("Enter", &[(KEYDOWN_IGNORE_REPEAT_ATTR, "false")]);
+    assert!(
+        !action_from_keydown(&t, &repeating("Enter"))
+            .unwrap()
+            .repeat_suppressed
+    );
+}
+
+#[test]
+fn repeat_opt_in_still_requires_key_match_and_no_ime() {
+    let t = el_with("Enter", &[(KEYDOWN_IGNORE_REPEAT_ATTR, "")]);
+    assert!(action_from_keydown(&t, &repeating("a")).is_none());
+    let composing = KeydownInput {
+        is_composing: true,
+        ..repeating("Enter")
+    };
+    assert!(action_from_keydown(&t, &composing).is_none());
+}
+
+#[test]
+fn repeat_suppression_keeps_prevent_default() {
+    let t = el_with(
+        "Enter",
+        &[
+            (KEYDOWN_IGNORE_REPEAT_ATTR, ""),
+            (KEYDOWN_PREVENT_DEFAULT_ATTR, ""),
+        ],
+    );
+    let r = action_from_keydown(&t, &repeating("Enter")).unwrap();
+    assert!(r.repeat_suppressed);
+    assert!(r.prevent_default);
+    assert_eq!(r.action_ref.payload, "Enter");
+}
+
+#[test]
+fn ignore_repeat_attr_grammar() {
+    assert!(ignore_repeat_from_attr(Some("")));
+    assert!(ignore_repeat_from_attr(Some("true")));
+    assert!(!ignore_repeat_from_attr(None));
+    assert!(!ignore_repeat_from_attr(Some("false")));
+    assert!(!ignore_repeat_from_attr(Some("1")));
 }
