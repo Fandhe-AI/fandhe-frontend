@@ -127,7 +127,7 @@ fn invalid_attribute_values_fail_closed() {
         Err(KeysParseError::TooLong)
     );
     assert_eq!(
-        parse_keys(&vec!["a"; MAX_KEY_TOKENS + 1].join(" ")),
+        parse_keys(&["a"; MAX_KEY_TOKENS + 1].join(" ")),
         Err(KeysParseError::TooManyTokens)
     );
     assert_eq!(
