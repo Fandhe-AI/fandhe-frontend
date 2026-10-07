@@ -43,6 +43,31 @@
 //! 上記の実効 LOC（10 行以内）は `static/wasm-full-init.js`（既定方式 =
 //! ハイドレーション経路の参照実装）として実ファイル化されており、
 //! `xtask check-loc`（イシュー #156）が CI で機械的に検証する。
+//!
+//! # keydown 配線（`action-keydown` feature）
+//!
+//! `mount`/`hydrate` は内部で `Runtime::mount`/`hydrate` を呼ぶため、click・input・
+//! change と同様に汎用 keydown 配線も最後の配線として自動登録される
+//! （`action-keydown` feature が有効な場合。既定 on）。このラッパー側にも JS グルー
+//! にも追加コードは不要で、DOM 側に属性を置くだけで有効になる。
+//!
+//! ```html
+//! <div id="app">
+//!   <button data-action-keydown="increment" data-keys="ArrowUp">+1</button>
+//! </div>
+//! ```
+//!
+//! - `data-keys` は必須で、`Escape`・`Control+Enter` のように修飾キーとキー名を指定する。
+//!   不正値は fail-closed で無視される
+//! - `preventDefault()` は `data-keydown-prevent-default`（空文字列または `true`）の
+//!   opt-in 時のみ呼ぶ。IME 変換中は action にならない
+//! - 属性はフォーカスされうる要素かその祖先に置く
+//!
+//! action の payload には押されたキーの正規トークン（例 `Escape`）が入る。`AppState`
+//! では payload を使わない `increment` / `decrement` / `reset` / `add_item` が keydown
+//! でも受理される。一方 `set_draft` はキー名が draft に入ってしまい、`remove_item` は
+//! payload を id として解釈できず no-op になるため、keydown には不向き。未知の action
+//! 名は no-op になる。詳細は `docs/design/wasm-full-architecture.md` 第 40・41 節を参照。
 
 use fandhe_frontend_interactive::AppState;
 use std::cell::RefCell;
