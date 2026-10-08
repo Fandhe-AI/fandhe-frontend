@@ -1,8 +1,9 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 26 件・
-scope 別 16 件、いずれも既定 on）と、`fandhe-frontend-dist-server`
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 32 件・
+scope 別 16 件、いずれも既定 on。このほか別枠 9 件も既定 on で、既定の
+合計は 57 件）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
 クレート doc・`crates/wasm-full/Cargo.toml` の `[features]` 直前コメント
@@ -433,7 +434,10 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 | 0.40.2 | `count-up` feature の統合（イシュー #2539、PR #2580。本 PR は独立に 0.36.1 まで到達していたが、origin/main が `carousel-motion`/`presence` 等で 0.40.1 まで進んでいたため、main の到達値に本 PR の patch 分を +1 して 0.40.2 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.0 へ追随した） |
 | 0.40.3 | PR #2582 で origin/main（#2536 の `shared_layout`〔`layout-animation` feature 配下、feature 追加なし〕統合で 0.40.2 到達）を再取り込み。本 PR 側も 0.40.2 のため同一版数の衝突として #638 条項に従い +1 して 0.40.3 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.16.3 へ追随した |
 | 0.40.3 | 版数衝突の再バンプ（PR #2580 の main 再取り込み。main 側が #2536 shared_layout の統合で 0.40.2 へ到達し本 PR と同版になったため +1。feature 追加なし） |
+| 0.41.0 | `Runtime::dispatch_action` 追加（イシュー #3751、PR #3756）。DOM イベント以外から action を dispatch する公開 API で、feature gating はない（§13） |
+| 0.42.0 | 汎用 keydown 配線の属性解釈とキー絞り込みの純粋ロジック追加（イシュー #3753、PR #3757）。内部ロジックのみで、利用者向けの挙動はこの版ではまだ配線されない |
 | 0.43.0 | `action-keydown` feature（イシュー #3754）。汎用 keydown 配線を `Runtime::mount`/`hydrate` に追加 |
+| 0.44.0 | `data-keydown-ignore-repeat` 追加（自動リピート抑止、イシュー #3763、PR #3772） |
 | 0.45.0 | keydown action の payload を `data-payload` 優先に変更（イシュー #3764） |
 | 0.46.0 | overlay・sidebar・command が消費する keydown では汎用 keydown 配線が action を見送る（排他、イシュー #3768。これまで両方発火していた組み合わせが部品優先の片方のみになる） |
 | 0.40.4 | PR #2582 で origin/main（#2539 の `count-up` feature 統合で 0.40.3 到達）を再取り込み。本 PR 側も 0.40.3 のため同一版数の衝突として #638 条項に従い +1 して 0.40.4 とする。あわせて `fandhe-frontend-animation` の依存 version 要求を 0.17.1 へ追随した |
@@ -446,7 +450,7 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.43.0"
+version = "0.46.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -729,3 +733,71 @@ let list = keyed_list("ul", vec![("aria-live", "polite")], "log", items);
 
 上限定数は HashDoS 対策の防御のため、引き上げたり `keyed_list()` を迂回したり
 しないでください。
+
+## 13. 外部からの action 起動（`Runtime::dispatch_action`）
+
+`Runtime::dispatch_action` は、DOM イベント（`data-action` 経路）以外から
+`Component` の action を dispatch する公開 API です（0.41.0 で追加、イシュー
+#3751）。タイマーのコールバック、`postMessage`、`storage` イベントなど、
+DOM 要素のクリックやキー入力ではない入力を `Component` へ届ける用途を想定
+しています。`postMessage` など外部由来の入力を渡す場合、送信元 origin の
+検証は呼び出し側の責務です。
+
+```rust
+pub fn dispatch_action(&self, name: &str, payload: &str) -> DispatchOutcome
+```
+
+### 13.1 引数と動作
+
+- `name`: action 名です。`Component` 側で解釈されます。
+- `payload`: `data-payload` と同じく信頼できない入力として扱われ、
+  `Component::decode_action` へ渡されます。DOM への反映は既存の既定エスケープ
+  済みの経路だけを通り、エスケープを迂回する経路は作られません。
+- action が受理されると `Component::update` が呼ばれ、`data-action` 経路と
+  同じ差分更新（束縛点・keyed list）が当たります。束縛点または keyed list と
+  して宣言されたフィールドの更新では、フォーカス・IME・入力途中の値・要素の
+  参照が保たれます。
+- 束縛点にも keyed list にも対応しないフィールドを更新する action では、
+  構造フォールバックにより `root` 配下が全置換され、これらは保たれません。
+  要素の保持が必要なら、更新対象のフィールドを束縛点または keyed list として
+  宣言してください。
+
+### 13.2 戻り値（`DispatchOutcome`）
+
+| variant | 意味 |
+|---|---|
+| `Dispatched` | action が受理され `Component::update` が呼ばれた。dirty field が空で DOM 更新がなくても、この値になります |
+| `UnknownAction` | 未知の action または不正な payload。状態も DOM も変更されない（安全側の no-op） |
+| `Reentrant` | `Component` の借用が取れなかった（再入）。状態も DOM も変更されない |
+
+`DispatchOutcome` は `fandhe_frontend_wasm_full::DispatchOutcome` として公開
+されます。
+
+### 13.3 再入時の扱い
+
+`Runtime::component()` が返す借用を保持している間、`Component::update` の実行中、
+配線コールバックの内部、`Runtime::rerender` の実行中に呼ぶと、`Reentrant` を
+返して何もしません（panic はしません）。action は保留もキューイングもされず
+捨てられます。反映したい場合は、呼び出し側が `setTimeout` などでコールバック
+の外へ逃がしてください。
+
+### 13.4 feature gating
+
+`dispatch_action` を有効化する Cargo feature はありません。`Runtime` は wasm32
+ターゲットでのみ定義されるため、本メソッドも wasm32 専用であり、native からは
+呼べません。
+
+### 13.5 使用例
+
+`Runtime` を保持する `thread_local!` から、タイマーのコールバックで呼ぶ例です。
+
+```rust
+let tick = Closure::<dyn FnMut()>::new(|| {
+    RUNTIME.with(|r| {
+        if let Some(rt) = r.borrow().as_ref() {
+            // Reentrant なら何もしない。必要なら次のタイマーで再試行する。
+            let _ = rt.dispatch_action("tick", "");
+        }
+    });
+});
+```
