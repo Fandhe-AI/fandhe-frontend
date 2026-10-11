@@ -8,16 +8,27 @@
 # CI 側の一次防御（version-bump-guard・cargo fmt/clippy ジョブ等、
 # `.claude/rules/ci.md`）を代替するものではなく、ローカルでの早期検知が目的。
 # `--no-verify` の使用は `.claude/rules/conventional-commits.md` で禁止。
+# フックの追加・変更時は `.claude/rules/git-hooks.md` の方針（時間予算・CI との
+# 役割分担）に従う。テスト・ビルド・clippy・全体 fmt など重い処理や CI と重複
+# する検査は CI（`.github/workflows/ci.yml`）側に置き、フックには置かない。
 
 pre-commit:
   parallel: true
   jobs:
-    # staged の *.rs のみを対象に `cargo fmt --check` を実行する。
+    # staged の *.rs のみを対象に `rustfmt --check` を実行する。
     # `--check` のみで自動修正（stage_fixed）はしない（速度重視。
     # 未整形を検知したら開発者が `make fmt` 等で明示的に直す運用）。
-    - name: "rust: cargo fmt --check (staged files)"
+    #
+    # `cargo fmt --check -- <files>` は渡したファイルに加えて workspace 全体
+    # （約 550 ターゲット）を毎回検査するため、staged が 1 ファイルでも約 3 秒
+    # かかっていた。workspace 全体の fmt は CI の `fmt` ジョブが担うため、
+    # ここでは rustfmt を直接呼んで staged ファイル（と、その子モジュール）に
+    # 限定する。rustfmt 単体は Cargo.toml を読まず既定 edition が 2015 になる
+    # ため、全クレート共通の `edition = "2021"` を明示する（edition を変える
+    # クレートが出たらここも更新する。`.claude/rules/git-hooks.md` 参照）。
+    - name: "rust: rustfmt --check (staged files)"
       glob: "*.rs"
-      run: cargo fmt --check -- {staged_files}
+      run: rustfmt --check --edition 2021 {staged_files}
 
     # staged 差分に対する簡易シークレット検知。
     # `.env` 系ファイルの追加と、API キー/シークレット/トークン/パスワード

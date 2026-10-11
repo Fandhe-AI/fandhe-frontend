@@ -201,6 +201,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `conventional-commits.md` | Conventional Commits 詳細規約（scope 一覧含む） |
 | `code-comment-style.md` | コメント規約（役割・責務・呼び出し文脈・`// SAFETY:` を埋め込む） |
 | `out-of-scope-tracking.md` | 実装対象外の追跡規約（スコープ外事項を Issue 化して放置しない） |
+| `git-hooks.md` | Git hooks（lefthook）編集ルール（pre-commit は staged 限定で 1 秒未満・CI と重複する重い検査はフックに置かない。frontmatter の `paths` により `lefthook.yml`・`tools/hooks/**` を読んだときだけ読み込まれる） |
 | `ci.md` | CI 規約（GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・ai-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・ツール前提の明示。frontmatter の `paths` により `.github/**`・`crates/**`・`site/**`・`templates/**`・`examples/**`・`Cargo.toml`・`docs/ci/**` 等を読んだときだけ読み込まれる） |
 
 ## Current Skills
