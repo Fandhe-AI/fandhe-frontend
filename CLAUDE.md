@@ -204,7 +204,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `out-of-scope-tracking.md` | 実装対象外の追跡規約（スコープ外事項を Issue 化して放置しない） |
 | `git-hooks.md` | Git hooks（lefthook）編集ルール（pre-commit は staged 限定で 1 秒未満・CI と重複する重い検査はフックに置かない。frontmatter の `paths` により `lefthook.yml`・`tools/hooks/**`・`.claude/settings.json` を読んだときだけ読み込まれる） |
 | `makefile.md` | Makefile / scripts 編集ルール（Makefile は薄い入口・レシピは `scripts/*.sh` か言語ネイティブ 1 行・ターゲット追加時の `.PHONY` / `## ` / `scripts/help.sh` 同期。frontmatter の `paths` により `Makefile`・`scripts/**` を読んだときだけ読み込まれる） |
-| `ci.md` | CI 規約（ワークフロー編集ガイド・棚卸し結果を含む。GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・ai-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・ツール前提の明示。frontmatter の `paths` により `.github/**`・`crates/**`・`site/**`・`templates/**`・`examples/**`・`Cargo.toml`・`docs/ci/**` 等を読んだときだけ読み込まれる） |
+| `ci.md` | CI 規約（ワークフロー編集ガイド・棚卸し結果を含む。GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・ai-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・キャッシュ方針〔上限 10GB・保存は main push のみ・キー設計・効果測定〕・ツール前提の明示。frontmatter の `paths` により `.github/**`・`crates/**`・`site/**`・`templates/**`・`examples/**`・`Cargo.toml`・`docs/ci/**` 等を読んだときだけ読み込まれる） |
 
 ## Current Skills
 
