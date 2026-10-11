@@ -1,7 +1,6 @@
 ---
 paths:
   - "lefthook.yml"
-  - "lefthook-local.yml"
   - "tools/hooks/**"
 ---
 
