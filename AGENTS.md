@@ -10,7 +10,8 @@ Fandhe-AI/actions の reusable workflow を `@latest` で呼び出す薄い wrap
 
 各観点の一次情報源は `CLAUDE.md`・`.claude/rules/`（特に
 [coding-rust.md](.claude/rules/coding-rust.md) /
-[security.md](.claude/rules/security.md) / [ci.md](.claude/rules/ci.md)）・
+[security.md](.claude/rules/security.md) / [ci.md](.claude/rules/ci.md) /
+[makefile.md](.claude/rules/makefile.md)）・
 `docs/policy/`・`docs/design/` であり、本書は重複記載を避けて要点と参照のみを
 まとめる。本書と一次情報源が食い違う場合は一次情報源を正とする。
 

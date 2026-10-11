@@ -106,3 +106,50 @@ paths:
 - 理由: 過去に構文エラーで CI 全滅の実績（PR #264 で修正）
 - YAML の仕様上、構造化された値（コロン含む）はクォート必須
 
+
+## ワークフロー編集ガイド（2026-10-11 棚卸し）
+
+上記の個別規約を前提に、ジョブ・ワークフローを追加・変更するときの共通手順をまとめる。
+
+### 発火条件の方針
+
+- 現状: `ci.yml`・`deps-check.yml`・`image-size.yml`・`musl-smoke.yml` は `pull_request` + `push: branches: [main]`（push は default ブランチのみ）。`docs-site.yml` は main push + `paths` + `workflow_dispatch`、`ai-review.yml` は `pull_request`（`branches: [main]`）、`release.yml` は `workflow_dispatch` のみ、`update-external.yml` は日次 schedule（00:00 UTC）+ `workflow_dispatch`。新規ワークフローも push は default ブランチのみにし、`push` と `pull_request` を無条件に同一ブランチへ二重発火させない
+- `concurrency` は `group: <名前>-${{ github.workflow }}-${{ github.ref }}` + `cancel-in-progress: true`（PR の新しい push で古い実行を止める）。Pages デプロイ・日次同期のように中断で中途半端な状態を残すものは `cancel-in-progress: false`
+- **必須チェックを含むワークフローに workflow 単位の `paths` / `paths-ignore` を付けない**（フィルタで未起動になると required context が pending のまま永久にマージ不能になる）。変更検知はジョブ内（`image-size.yml`・`musl-smoke.yml` が実例。非該当は数秒で成功終了する）で行い、`ci-complete` で扱う。`paths` を使ってよいのは `docs-site.yml` のような必須チェックを持たない main push 専用のもの
+- draft PR は必須チェックが pending にならないよう、ジョブ単位でも `if: draft == false` によるスキップをしない（現行は全ジョブ常時実行）
+- schedule / 手動ワークフローの頻度は最小限にする（現状は日次 1 本のみ）。`merge_group` は使っていない（merge queue 未使用）
+
+### 新規ジョブ・ワークフロー追加のチェックリスト
+
+- [ ] 既存ワークフロー（`ci.yml`）へのジョブ追加を優先し、ワークフロー数を増やさない（ただし必須チェックの追加は ruleset 更新が前提。上記「ruleset 更新の運用手順」）
+- [ ] `ci-complete` の `needs:` と `.github/required-status-checks.json` に追加する（ジョブ名を変える場合も ruleset 側の更新が必要）
+- [ ] `runs-on: ubuntu-latest` のみ（「Runner 方針」）
+- [ ] 不要な `needs:` を作らない（現行の `ci.yml` はジョブ間依存が無く全ジョブ並列で、壁時計は最長ジョブで決まる）
+- [ ] `actions/checkout` は `submodules: false`・`persist-credentials: false`。必要なら `fetch-depth` を最小にする
+- [ ] キャッシュは `docs/ci/hosted-runner-migration.md` §3 に従う（`actions/cache` + フル SHA ピン、target を復元するジョブには #1192 ガードステップ）。サードパーティのキャッシュ action は追加しない
+- [ ] action は既存方針どおりフル commit SHA（`# vX.Y.Z` コメント付き）でピン止めし、自組織の `Fandhe-AI/actions` を優先する
+- [ ] 独自ロジックを YAML に書かず、`tools/ci/*.sh` や `make` ターゲット（`.claude/rules/makefile.md`）の共通コマンドを呼ぶ
+- [ ] lefthook と重複させない（`git-hooks.md`。CI 側が正）
+- [ ] `cargo test -p xtask` のワークフロー契約テスト（`crates/xtask/tests/workflow_*.rs`）を通す。`actionlint` も通す
+
+### 計測方法
+
+```bash
+gh run list --workflow ci.yml --limit 30 --json databaseId,conclusion,createdAt,updatedAt,event
+gh run view <run-id> --json jobs   # ジョブ・ステップ別の startedAt / completedAt
+```
+
+### 棚卸し結果（2026-10-11、直近 30 件・success/failure のみ、壁時計）
+
+| ワークフロー | 発火 | 中央値 | 最大 |
+| --- | --- | --- | --- |
+| `ci.yml`（26 ジョブ + `ci-complete`） | PR | 691 秒 | 2720 秒 |
+| `ci.yml` | main push | 697 秒 | 814 秒 |
+| `deps-check.yml` | PR / push | 35 秒 / 29 秒 | 95 秒 |
+| `image-size.yml` | PR / push | 15 秒 / 100 秒 | 151 秒 |
+| `musl-smoke.yml` | PR / push | 18 秒 / 80 秒 | 88 秒 |
+| `docs-site.yml` | main push | 110 秒 | 296 秒 |
+| `ai-review.yml` | PR | 66 秒 | 149 秒 |
+| `update-external.yml` | schedule | 115 秒 | 158 秒 |
+
+`ci.yml` のクリティカルパスは `fw gate --project . self-apply: test`（約 670 秒）と `test-docs-site`（約 560 秒、うち `cargo test -p fandhe-frontend-docs-site` が約 490 秒）。両者は docs-site のテストを重複して実行している。解消にはジョブの統合・削除が必要で、必須チェック名の変更（ruleset 更新）を伴うため、行う場合は上記「ruleset 更新の運用手順」に従う。

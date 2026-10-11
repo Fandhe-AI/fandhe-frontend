@@ -122,7 +122,8 @@ make fmt
 make lint
 ```
 
-全ターゲット一覧は `make help` で確認してください。
+全ターゲット一覧は `make help` で確認してください（Make を使わない場合の同等コマンドは `scripts/help.sh`）。
+Makefile は薄い入口で、処理の定義は `scripts/` にあります（編集ルール: `.claude/rules/makefile.md`）。
 
 ### lefthook によるローカル検証
 
