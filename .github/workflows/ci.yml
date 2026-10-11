@@ -2338,7 +2338,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
@@ -2499,7 +2499,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          key: clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
@@ -2652,7 +2652,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          key: wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
@@ -2767,7 +2767,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          key: wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
@@ -2939,7 +2939,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          key: wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 

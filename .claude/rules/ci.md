@@ -135,9 +135,10 @@ paths:
 ### キャッシュ（2026-10-11 棚卸し）
 
 - 方針（採用 action・キー設計・fail-open・ツールバイナリ非対象）の正は `docs/ci/hosted-runner-migration.md` §3 で、ここでは運用上の要点だけを置く
-- 上限はリポジトリあたり 10GB（超えると最終アクセスの古い順に追い出し、7 日間アクセスが無いものは削除）。超過分の課金予算は $0 のため、上限の中でヒット率を保つ
+- 上限はリポジトリあたり 10GB（超えると最終アクセスの古い順に追い出し、7 日間アクセスが無いものは削除）。Org の Actions 予算は $10（超過で停止）。上限を 10GB より上げると、10GB を超えた分は 1GB あたり月 $0.07 かかる（予算の対象）。上限の中でヒット率を保つ
 - **保存は main push だけ**: PR の merge ref（`refs/pull/N/merge`）に保存したキャッシュは当該 PR からしか使えないのに上限を共有し、main のキャッシュを追い出す。`ci.yml` の `clippy`・`clippy-wasm32`・`wasm-full-feature-matrix-baseline`/`-wiring`/`-scope` は `actions/cache/restore`（`id: cache`）とジョブ末尾の `actions/cache/save`（`if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'`、`key: ${{ steps.cache.outputs.cache-primary-key }}`、`continue-on-error: true`）に分けている。save の `path` は restore と完全に一致させる。main push 専用の `docs-site.yml` は一体型の `actions/cache` のままでよい
 - キーにはジョブ系統の prefix を付け、系統をまたいで共有しない（#1192 の rlib 汚染対策、§3.3）。SHA や run_id などの一意値をキーに入れない
+- キーのハッシュ対象はワークスペースルートの `Cargo.lock` だけ（`hashFiles('Cargo.lock')`）。`**/Cargo.lock` は `examples/`・`templates/`・`.agents/skills/*/samples/` 等の入れ子の Cargo.lock（ジョブがビルドしない独立プロジェクト）まで拾い、スキル同期などの無関係な変更でキーが変わる。toolchain 世代（`rustc -vV` の commit-hash 先頭 12 文字）は必ずキーに入れる（§3.3）
 - runner image の更新で rustc が変わるとキー（toolchain 世代）が変わり、旧世代のキャッシュは 7 日後に消えるまで上限を占有する。10-07〜10-08 は旧世代 9 件・約 6.5GB が残り、現行世代の main キャッシュが追い出されて miss が出た
 - 計測: `gh api repos/Fandhe-AI/fandhe-frontend/actions/cache/usage`、`gh api --paginate "repos/Fandhe-AI/fandhe-frontend/actions/caches?per_page=100"`、ジョブログの `Cache restored from key:`（primary key と一致なら exact、そうでなければ partial）/ `Cache not found` / `Cache saved with key:`
 - 実測（変更前、直近 27 run）: 使用量 9.55GB / 36 件。10-09 以降のヒットは exact 81%・partial 16%・miss 3%。系統ごとのジョブ時間とトレードオフは `docs/ci/hosted-runner-migration.md` §5.9
