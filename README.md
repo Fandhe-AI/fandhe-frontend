@@ -130,14 +130,16 @@ make lint
 （lefthook 本体は別途導入が必要で、未導入の場合は `make setup` が
 導入手順を案内します）。有効化後、commit 時に以下が自動実行されます。
 
-- cargo fmt チェック（staged ファイルのみ）
+- rustfmt チェック（staged の `*.rs` のみ。workspace 全体の整形チェックは CI の `fmt` ジョブが担う）
 - 簡易シークレット検知（`.env` ファイルの追加、API キーらしき値の検出。
   保守的なヒューリスティックであり実トークン形式の一部は検出できないため、
   網羅的なスキャナの代替にはなりません）
 - Conventional Commits 形式の検証（commit-msg）
 
-lefthook 未導入環境でも commit は可能ですが、
-同じ検証が CI で実行されるため、早期検知のため導入を推奨します。
+lefthook 未導入環境でも commit は可能です。整形は CI でも検査されますが、
+シークレット検知とコミットメッセージ形式の検証は CI では行わないため、導入を推奨します。
+テスト・clippy などの重い検査はフックでは実行せず CI に任せます
+（フックの方針は `.claude/rules/git-hooks.md` を参照）。
 `--no-verify` による bypass は `.claude/rules/conventional-commits.md` で禁止されています。
 
 ### Docker による開発

@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v jq >/dev/null 2>&1 || exit 0; f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.rs) command -v rustfmt >/dev/null 2>&1 && rustfmt -- \"$f\" 2>/dev/null || true;; esac"
+            "command": "command -v jq >/dev/null 2>&1 || exit 0; f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.rs) command -v rustfmt >/dev/null 2>&1 || exit 0; if ! out=$(rustfmt --edition 2021 -- \"$f\" 2>&1); then printf 'warning: rustfmt --edition 2021 failed, %s was left unformatted (edit kept)\\n%s\\n' \"$f\" \"$out\" >&2; exit 1; fi;; esac"
           }
         ]
       }
