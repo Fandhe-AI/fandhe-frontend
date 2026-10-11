@@ -2327,7 +2327,11 @@ jobs:
         # 失敗もジョブを失敗させない）。ツールバイナリ（clippy component 等）
         # はキャッシュ対象に含めず、SHA256 検証付き導入の経路を維持する
         # （§3.4）。
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
+        # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
+        # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -2395,6 +2399,26 @@ jobs:
 
       - name: "cargo clippy -p fandhe-frontend-pre-styled-ui --features motion -- -D warnings（issue #2416）"
         run: cargo clippy -p fandhe-frontend-pre-styled-ui --features motion --all-targets --locked -- -D warnings
+
+      - name: "cache: save（main push のみ、docs/ci/hosted-runner-migration.md §3.4）"
+        # PR では保存しない（上記 restore のみ）。refs/pull/*/merge スコープの
+        # キャッシュは当該 PR 自身からしか参照できないのに 10GB 上限を共有し、
+        # main のキャッシュを LRU で追い出す（2026-10-11 実測、§5.9）。primary
+        # key に exact hit した場合は同一キーへ再保存できないため skip する。
+        # 前段ステップが失敗した場合は保存しない（actions/cache 一体型の post
+        # 保存と同じ挙動）。path は restore ステップと完全に一致させること。
+        # 保存の失敗はジョブを失敗させない（§3.4 の fail-open。キャッシュは
+        # 最適化であり、検証結果は保存より前のステップで確定している）。
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   # イシュー #1160（出典: PR #1147 out-of-scope）: 上記 clippy ジョブは host
   # target のみを対象とするため、`#[cfg(target_arch = "wasm32")]` ゲート配下
@@ -2464,7 +2488,11 @@ jobs:
         # しない（restore/save いずれの失敗もジョブを失敗させない）。ツール
         # バイナリ（clippy component 等）はキャッシュ対象に含めず、SHA256
         # 検証付き導入の経路を維持する（§3.4）。
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
+        # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
+        # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -2543,6 +2571,26 @@ jobs:
         # 組み合わせ由来の dead_code 回帰を追加でカバーする。
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,keynav,listbox,tree-view,calendar --target wasm32-unknown-unknown --locked -- -D warnings
 
+      - name: "cache: save（main push のみ、docs/ci/hosted-runner-migration.md §3.4）"
+        # PR では保存しない（上記 restore のみ）。refs/pull/*/merge スコープの
+        # キャッシュは当該 PR 自身からしか参照できないのに 10GB 上限を共有し、
+        # main のキャッシュを LRU で追い出す（2026-10-11 実測、§5.9）。primary
+        # key に exact hit した場合は同一キーへ再保存できないため skip する。
+        # 前段ステップが失敗した場合は保存しない（actions/cache 一体型の post
+        # 保存と同じ挙動）。path は restore ステップと完全に一致させること。
+        # 保存の失敗はジョブを失敗させない（§3.4 の fail-open。キャッシュは
+        # 最適化であり、検証結果は保存より前のステップで確定している）。
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
   # イシュー #2328: `crates/wasm-full/` の feature unification 問題（既存
   # `--workspace` 系ジョブは default-features が全 on のため縮小構成を
   # 一切検証しない、`docs/design/wasm-full-feature-gating-evaluation.md`
@@ -2593,7 +2641,11 @@ jobs:
         # 他ジョブのキャッシュ名前空間と衝突しない（イシュー #1192 型汚染の
         # 経路を作らない設計を踏襲）。miss 時はフルビルドへ自然にフォール
         # バックする fail-open 設計であり、正当性の前提にしない。
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
+        # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
+        # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -2645,6 +2697,26 @@ jobs:
       - name: "cargo clippy (wasm32-unknown-unknown, --all-features, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --all-features --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
+      - name: "cache: save（main push のみ、docs/ci/hosted-runner-migration.md §3.4）"
+        # PR では保存しない（上記 restore のみ）。refs/pull/*/merge スコープの
+        # キャッシュは当該 PR 自身からしか参照できないのに 10GB 上限を共有し、
+        # main のキャッシュを LRU で追い出す（2026-10-11 実測、§5.9）。primary
+        # key に exact hit した場合は同一キーへ再保存できないため skip する。
+        # 前段ステップが失敗した場合は保存しない（actions/cache 一体型の post
+        # 保存と同じ挙動）。path は restore ステップと完全に一致させること。
+        # 保存の失敗はジョブを失敗させない（§3.4 の fail-open。キャッシュは
+        # 最適化であり、検証結果は保存より前のステップで確定している）。
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
   # イシュー #2328: 配線群 feature（`perf-assert` + `default` 掲載の 15 件、
   # `wasm-full-feature-gating-evaluation.md` §Cargo.toml 冒頭コメント対応表
   # 参照）を `wasm-bindgen-exports` のみと組み合わせた単体構成で clippy する。
@@ -2684,7 +2756,11 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: "cache: cargo registry + target（イシュー #2328、clippy-wasm32 と同型）"
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
+        # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
+        # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -2797,6 +2873,26 @@ jobs:
       - name: "cargo clippy (wasm32-unknown-unknown, feature: presence, issue #2544)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,presence --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
+      - name: "cache: save（main push のみ、docs/ci/hosted-runner-migration.md §3.4）"
+        # PR では保存しない（上記 restore のみ）。refs/pull/*/merge スコープの
+        # キャッシュは当該 PR 自身からしか参照できないのに 10GB 上限を共有し、
+        # main のキャッシュを LRU で追い出す（2026-10-11 実測、§5.9）。primary
+        # key に exact hit した場合は同一キーへ再保存できないため skip する。
+        # 前段ステップが失敗した場合は保存しない（actions/cache 一体型の post
+        # 保存と同じ挙動）。path は restore ステップと完全に一致させること。
+        # 保存の失敗はジョブを失敗させない（§3.4 の fail-open。キャッシュは
+        # 最適化であり、検証結果は保存より前のステップで確定している）。
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
   # イシュー #2328: scope feature（イシュー #2327 で新設した MAPPING_TABLE
   # 行・keynav match arm 単位の 16 件）を `wasm-bindgen-exports` のみと
   # 組み合わせた単体構成で clippy する。上記 wiring ジョブと同じ
@@ -2832,7 +2928,11 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: "cache: cargo registry + target（イシュー #2328、clippy-wasm32 と同型）"
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
+        # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
+        # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -2894,6 +2994,26 @@ jobs:
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,tooltip --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
       - name: "cargo clippy (wasm32-unknown-unknown, feature: tree-view, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,tree-view --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
+      - name: "cache: save（main push のみ、docs/ci/hosted-runner-migration.md §3.4）"
+        # PR では保存しない（上記 restore のみ）。refs/pull/*/merge スコープの
+        # キャッシュは当該 PR 自身からしか参照できないのに 10GB 上限を共有し、
+        # main のキャッシュを LRU で追い出す（2026-10-11 実測、§5.9）。primary
+        # key に exact hit した場合は同一キーへ再保存できないため skip する。
+        # 前段ステップが失敗した場合は保存しない（actions/cache 一体型の post
+        # 保存と同じ挙動）。path は restore ステップと完全に一致させること。
+        # 保存の失敗はジョブを失敗させない（§3.4 の fail-open。キャッシュは
+        # 最適化であり、検証結果は保存より前のステップで確定している）。
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   # イシュー #2328: readonly RadioGroup の click capture 保護（イシュー #1616、
   # PR #2339 で `wire_readonly_click_guard` として `keynav` から分離）が
