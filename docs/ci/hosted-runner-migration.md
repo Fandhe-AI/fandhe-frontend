@@ -102,8 +102,22 @@ fail-open 前提（§3.4）の裏付けとして常に成立していなけれ�
 
 ### 3.3 キャッシュキー設計
 
-- キーは `os` + Rust toolchain バージョン + `hashFiles('**/Cargo.lock')` +
+- キーは `os` + Rust toolchain バージョン + `hashFiles('Cargo.lock')` +
   **ジョブ系統（job family）** を含める。
+- **toolchain バージョン**は `rustc -vV` の `commit-hash` 先頭 12 文字
+  （`steps.toolchain.outputs.cachekey`、例: `b940084d7eb6`）。runner image の
+  更新で stable の rustc が変わるとキーも変わり、旧 rustc の `target` に
+  exact hit し続けることはない。
+- **ハッシュ対象はワークスペースルートの `Cargo.lock` だけ**（2026-10-11、§5.9）。
+  キャッシュするジョブ（`ci.yml` の 5 系統・`docs-site.yml`）はいずれも
+  ワークスペース内のクレートを `--locked` でビルドし、キャッシュ対象の
+  `target` と `~/.cargo` の中身はルートの `Cargo.lock` で決まる。
+  `**/Cargo.lock` だと `examples/`・`templates/`・`crates/cli/embedded-examples/`・
+  `bench/`・`.agents/skills/*/samples/` 等の入れ子の Cargo.lock 28 件
+  （それぞれ独立したプロジェクトで、これらのジョブはビルドしない）の変更でも
+  キーが変わり、依存に変化がないのに partial hit と新規保存が起きる。
+  入れ子のプロジェクトをビルドするジョブへキャッシュを足す場合は、その
+  プロジェクトの Cargo.lock をジョブ系統ごとに明示して加える（glob に戻さない）。
 - **ジョブ系統分離の理由**: イシュー #1192 で観測された rlib 汚染
   （`cargo package`/`cargo publish --dry-run` の検証ビルドが registry
   依存解決の rlib で共有 target を上書きし、後続のワークスペースビルドが
@@ -623,12 +637,15 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   サイズ 2,057MB 対 114MB）だった。キャッシュ内容は API から参照できず
   原因は特定していない。runner image 更新後にサイズが急増していないかを
   一覧で確認する。
-- **見送り（方針変更を伴うため未実施）**: キーの `hashFiles('**/Cargo.lock')`
-  （§3.3）は、`examples/`・`templates/`・`.agents/skills/*/samples/` 等の
-  入れ子の Cargo.lock 28 件も対象にする。10-11 は `.agents/skills/make/samples/`
-  の Cargo.lock 追加だけで 5 系統すべてのキーが変わり、依存に変化がないのに
-  partial hit と新規保存が発生した。ルートの `Cargo.lock` のみをハッシュ
-  すれば防げるが、§3.3 のキー設計の変更になるため別途判断とする。
+- **キーのハッシュ対象をルートの `Cargo.lock` に限定（2026-10-11、§3.3）**:
+  従来の `hashFiles('**/Cargo.lock')` は `examples/`・`templates/`・
+  `.agents/skills/*/samples/` 等の入れ子の Cargo.lock 28 件も対象にしており、
+  10-11 は `.agents/skills/make/samples/` の Cargo.lock 追加だけで 5 系統
+  すべてのキーが変わり、依存に変化がないのに partial hit と新規保存が
+  発生した。`ci.yml` の 5 系統と `docs-site.yml` のキーを
+  `hashFiles('Cargo.lock')` に変えた。切り替え直後の main push は旧キーへの
+  restore-keys 一致（partial hit）で復元して新キーで保存し、以降は exact hit
+  に戻る。
 
 ## 6. 移行順序と検証手順
 
