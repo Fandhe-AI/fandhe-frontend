@@ -602,10 +602,12 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
 
   10-07〜10-08 の miss は runner image のロールアウト途中で toolchain
   世代（rustc commit hash）が run ごとに入れ替わったことが主因。10-09 の
-  `wasm-full-feature-matrix-scope` の miss 2 件は追い出しによる: main で
-  10-07 に保存した現行世代のキー（`…-2644f2d9…`、5 系統とも）が一覧から
+  `wasm-full-feature-matrix-scope` の miss 2 件は追い出しによる: 10-07 に
+  main で保存した `…-2644f2d9…` の 4 件（`clippy`〔旧世代〕・
+  `clippy-wasm32`・`-baseline`・`-scope`）が 7 日の期限前に一覧から
   消えており、旧世代の大きなキャッシュ（1 件最大約 2GB）と PR merge ref の
-  保存で 10GB に近づいた際に LRU で追い出されたと判断した。
+  保存で 10GB に近づいた際に LRU で追い出されたと判断した（10-09 時点で
+  main に現行世代の `-scope` キャッシュが無かった）。
 - **ジョブ時間（平均、exact / partial / miss）**: `clippy` 61 / 65 / 98 秒、
   `clippy-wasm32` 26 / 33 / 60 秒、`-baseline` 54 / 62 / 112 秒、`-scope`
   80 / 103 / 117 秒、`-wiring` 188 / 206 / 214 秒。いずれも `ci.yml` の
