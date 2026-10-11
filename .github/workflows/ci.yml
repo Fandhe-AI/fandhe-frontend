@@ -1,3 +1,4 @@
+# ジョブ追加・変更時は .claude/rules/ci.md（「ワークフロー編集ガイド」）に従う。
 name: CI
 
 on:

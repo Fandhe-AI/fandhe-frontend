@@ -1,3 +1,4 @@
+# ジョブ追加・変更時は .claude/rules/ci.md（「ワークフロー編集ガイド」）に従う。
 name: x86_64 musl startup smoke (REQ-9)
 
 # TASK-9.3（イシュー #160）: PoC-4（docs/spec/03-poc/single-binary-distribution/README.md

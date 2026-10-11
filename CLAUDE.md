@@ -72,6 +72,7 @@ fandhe-frontend/
 ├── .github/
 │   ├── workflows/              # CI ワークフロー（ci.yml / deps-check.yml / musl-smoke.yml / image-size.yml / ai-review.yml / docs-site.yml / release.yml / update-external.yml）
 │   └── required-status-checks.json  # ruleset `main-protection` の required_status_checks の正のマニフェスト（`{context, integration_id}` の一覧。`gh api rulesets/<id>` の出力から生成、手書きしない。ワークフローとの整合は `crates/xtask/tests/workflow_required_checks_manifest.rs`、live ruleset との整合は `xtask check-ruleset-sync`〔`dep-version-check` ジョブ〕が検証する。イシュー #2325、`.claude/rules/ci.md` §「`ci-complete` 集約ジョブと ruleset 必須チェック」参照）
+├── scripts/                    # Makefile から呼ぶ開発スクリプト（setup / lint / gate / bench / bench-cross / docs-preview / help と共通 lib.sh。`.claude/rules/makefile.md`）
 ├── tools/                      # CI・開発スクリプト
 │   ├── ci/                    # CI 用ブートストラップ（ensure-gate-tools.sh、docs-site-external-use-smoke.sh）
 │   └── hooks/                 # Git hooks スクリプト（lefthook 実行対象）
@@ -202,7 +203,8 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `code-comment-style.md` | コメント規約（役割・責務・呼び出し文脈・`// SAFETY:` を埋め込む） |
 | `out-of-scope-tracking.md` | 実装対象外の追跡規約（スコープ外事項を Issue 化して放置しない） |
 | `git-hooks.md` | Git hooks（lefthook）編集ルール（pre-commit は staged 限定で 1 秒未満・CI と重複する重い検査はフックに置かない。frontmatter の `paths` により `lefthook.yml`・`tools/hooks/**`・`.claude/settings.json` を読んだときだけ読み込まれる） |
-| `ci.md` | CI 規約（GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・ai-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・ツール前提の明示。frontmatter の `paths` により `.github/**`・`crates/**`・`site/**`・`templates/**`・`examples/**`・`Cargo.toml`・`docs/ci/**` 等を読んだときだけ読み込まれる） |
+| `makefile.md` | Makefile / scripts 編集ルール（Makefile は薄い入口・レシピは `scripts/*.sh` か言語ネイティブ 1 行・ターゲット追加時の `.PHONY` / `## ` / `scripts/help.sh` 同期。frontmatter の `paths` により `Makefile`・`scripts/**` を読んだときだけ読み込まれる） |
+| `ci.md` | CI 規約（ワークフロー編集ガイド・棚卸し結果を含む。GitHub ホステッドランナー既定・`runs-on` は `ubuntu-latest` 単一・ai-review の codex ジョブのみ self-hosted 例外・共有 CARGO_TARGET_DIR 対策・ツール前提の明示。frontmatter の `paths` により `.github/**`・`crates/**`・`site/**`・`templates/**`・`examples/**`・`Cargo.toml`・`docs/ci/**` 等を読んだときだけ読み込まれる） |
 
 ## Current Skills
 
@@ -213,14 +215,14 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 - **計画・ドキュメント**: create-plan / update-docs / comment-code
 - **Project v2**: project-init / project-add-items / project-create-issues / project-update-items / project-view-status / project-sync-issues / project-archive-done
 - **.claude 体系**: init-claude / update-claude / sync-skills-lock / contribute-skill / update-reference
-- **リファレンス**: rust / github-docs / commitlint / lefthook / editorconfig
+- **リファレンス**: rust / github-docs / commitlint / lefthook / editorconfig / make
 
 ## Conventions
 
 - **日本語**: やりとり・ドキュメント・コミット/PR 本文は日本語（`japanese-style.md`）
 - **Conventional Commits**: create-commit スキルを使用。`--no-verify` 禁止（`conventional-commits.md`）。commit-msg フック（`tools/hooks/commit-msg-check.sh`）でローカル検証が自動実行される
 - **ローカル hooks**: lefthook による pre-commit / commit-msg フック（`make setup` で導入、`--no-verify` 禁止は従来どおり）
-- **開発タスク**: `make help` で全ターゲット一覧が見られる（setup / build / test / fmt / lint / gate / bench / bench-cross / docs / docs-preview / docker-dev-build / docker-dev）
+- **開発タスク**: `make help` で全ターゲット一覧が見られる。Makefile は薄い入口で、複数行の処理は `scripts/*.sh` に置く（`.claude/rules/makefile.md`、Make 非依存の一覧は `scripts/help.sh`）（setup / build / test / fmt / lint / gate / bench / bench-cross / docs / docs-preview / docker-dev-build / docker-dev）
 - **セキュリティレビュー**: コミット・PR 前に security-auditor による OWASP チェック必須（`security.md`）
 - **ユーザー承認フロー**: 実装は計画承認後（implement-issue）。依存クレート追加・Issue 起票は事前承認必須
 - **`docs/spec/` は編集禁止**: サブモジュール。仕様変更は fandhe-frontend-spec リポジトリで行う
