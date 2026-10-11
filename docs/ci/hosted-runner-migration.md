@@ -146,6 +146,20 @@ fail-open 前提（§3.4）の裏付けとして常に成立していなけれ�
   ジョブを失敗させない。
 - キャッシュ保存は main push（デフォルトブランチ）ビルドで温め、PR は
   restore-keys のプレフィックス一致で温まったキャッシュを再利用する。
+  - **実装形（2026-10-11、§5.9）**: 一体型の `actions/cache` はジョブ
+    終了時に ref を問わず保存するため、PR の merge ref（`refs/pull/N/merge`）
+    スコープにも保存され本方針と食い違っていた。`ci.yml` の 5 ジョブ
+    （`clippy`・`clippy-wasm32`・`wasm-full-feature-matrix-baseline`/
+    `-wiring`/`-scope`）は、同一リポジトリ・同一 SHA ピンの
+    `actions/cache/restore`（`id: cache`）と、ジョブ末尾の
+    `actions/cache/save`（`if: github.event_name == 'push' && github.ref ==
+    'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'`、
+    `key: ${{ steps.cache.outputs.cache-primary-key }}`、
+    `continue-on-error: true`）へ分割する。#1192 ガードは restore の後段に
+    置く（契約テストは `actions/cache/restore` を復元ステップとして扱い、
+    `actions/cache/save` を対象外とする）。`docs-site.yml` は main push
+    専用のため一体型のままでよい。新たにキャッシュを追加するジョブも
+    この分割形に揃える。
 - public リポジトリのキャッシュ上限（リポジトリあたり既定 10GB、7 日間
   未アクセスで古いものから eviction）を踏まえ、複数ジョブ系統のキャッシュが
   共存できるようキー設計（§3.3）で圧迫を避ける。fork PR からのキャッシュ
@@ -560,6 +574,59 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   キュー待ちなし）の両面から、ホステッドランナー移行後の同時実行数はボトル
   ネックにならないと判断する。§5.1 の「下限の目安」という見積り表記は本節
   の確定値・実測により裏付けられたため置き換えた。
+
+### 5.9 キャッシュ使用量・ヒット率の棚卸し（2026-10-11）
+
+- **計測方法**: 使用量は `gh api repos/Fandhe-AI/fandhe-frontend/actions/cache/usage`、
+  一覧は `gh api --paginate "repos/Fandhe-AI/fandhe-frontend/actions/caches?per_page=100"`
+  （key / size / ref / created_at / last_accessed_at）。ヒット率は各ジョブ
+  ログ（`gh run view --job <id> --log`）の `Cache restored from key:`
+  （primary key と一致なら exact、restore-keys 一致なら partial）・
+  `Cache not found for input keys`（miss）・`Cache saved with key:` で
+  判定する。
+- **使用量（変更前）**: 9.55GB / 36 件（上限 10GB、超過分の課金予算は $0）。
+  内訳は次のとおりで、旧 toolchain 世代が 7 割を占めていた。
+
+  | 区分 | 件数 | サイズ |
+  |------|------|--------|
+  | 旧 toolchain 世代 `48a229ceaefd`（runner image 20260927 / cargo 1.98.1、最終アクセス 10-07〜10-08） | 9 | 約 6.5GB |
+  | 現行世代 `b940084d7eb6`（image 20261004 / cargo 1.99.0）・main | 13 | 約 1.0GB |
+  | 現行世代・PR merge ref | 16 | 約 1.4GB |
+
+- **ヒット率（直近 27 run・5 ジョブ系統）**:
+
+  | 期間 | exact | partial | miss |
+  |------|-------|---------|------|
+  | 10-07〜10-08（runner image 切替中、11 run） | 17 | 16 | 21 |
+  | 10-09〜10-11（16 run） | 65（81%） | 13 | 2 |
+
+  10-07〜10-08 の miss は runner image のロールアウト途中で toolchain
+  世代（rustc commit hash）が run ごとに入れ替わったことが主因。10-09 の
+  `wasm-full-feature-matrix-scope` の miss 2 件は追い出しによる: main で
+  10-07 に保存した現行世代のキー（`…-2644f2d9…`、5 系統とも）が一覧から
+  消えており、旧世代の大きなキャッシュ（1 件最大約 2GB）と PR merge ref の
+  保存で 10GB に近づいた際に LRU で追い出されたと判断した。
+- **ジョブ時間（平均、exact / partial / miss）**: `clippy` 61 / 65 / 98 秒、
+  `clippy-wasm32` 26 / 33 / 60 秒、`-baseline` 54 / 62 / 112 秒、`-scope`
+  80 / 103 / 117 秒、`-wiring` 188 / 206 / 214 秒。いずれも `ci.yml` の
+  クリティカルパス（約 670 秒）より短く、キャッシュ有無は壁時計に影響
+  しない。
+- **PR からの保存をやめた影響**: Cargo.lock を変えない PR は main のキーに
+  exact hit するため影響なし。Cargo.lock を変える PR の 2 回目以降の push
+  は exact から partial になり、上表の差（1 ジョブあたり +4〜+23 秒）だけ
+  遅くなる。PR merge ref のキャッシュは当該 PR からしか参照できないため、
+  これと引き換えに 10GB を main のキャッシュへ回す。
+- **未解決（要観察）**: 旧世代のキャッシュは同一ジョブ・同一コンパイル
+  対象（87 crate）でも現行世代の 5〜20 倍（例: `-wiring` cold build の保存
+  サイズ 2,057MB 対 114MB）だった。キャッシュ内容は API から参照できず
+  原因は特定していない。runner image 更新後にサイズが急増していないかを
+  一覧で確認する。
+- **見送り（方針変更を伴うため未実施）**: キーの `hashFiles('**/Cargo.lock')`
+  （§3.3）は、`examples/`・`templates/`・`.agents/skills/*/samples/` 等の
+  入れ子の Cargo.lock 28 件も対象にする。10-11 は `.agents/skills/make/samples/`
+  の Cargo.lock 追加だけで 5 系統すべてのキーが変わり、依存に変化がないのに
+  partial hit と新規保存が発生した。ルートの `Cargo.lock` のみをハッシュ
+  すれば防げるが、§3.3 のキー設計の変更になるため別途判断とする。
 
 ## 6. 移行順序と検証手順
 
