@@ -208,10 +208,16 @@ jobs:
         # 独立ステップで可視化する（`cargo test --workspace` の暗黙包含に依存しない）。
         # pre-styled-ui は styled 部品公開 API 経由の回帰（イシュー #607、
         # xss_escape_styled.rs）も独立ファイルとして追加し、両ファイルを実行する。
+        # wireframe-ui（SSR 専用の第 3 の UI 層）は部品ごとのテストファイルに XSS 回帰を
+        # 持ち、`xss_escape.rs` のような集約ファイルを持たない。そのためテスト名の
+        # フィルタ（`xss` / `escape`）で全テストバイナリから XSS 回帰を抽出し、
+        # 独立ステップとして可視化する（`cargo test --workspace` の暗黙包含に依存しない）。
+        # 新規部品の XSS 回帰テストは名前に `xss` か `escape` を含めること。
         run: |
           cargo test -p fandhe-frontend-core --test xss_escape --locked
           cargo test -p fandhe-frontend-headless-ui --test xss_escape --locked
           cargo test -p fandhe-frontend-pre-styled-ui --test xss_escape --test xss_escape_styled --locked
+          cargo test -p fandhe-frontend-wireframe-ui --locked -- xss escape
 
       # TASK-13.3c（#141）: `fw gate`（crates/cli/src/gate.rs）の `policy` チェックは
       # `cargo deny check bans licenses sources` を実際に起動する。cargo-deny
