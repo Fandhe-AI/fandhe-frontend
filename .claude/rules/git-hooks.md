@@ -2,6 +2,7 @@
 paths:
   - "lefthook.yml"
   - "tools/hooks/**"
+  - ".claude/settings.json"
 ---
 
 # Git hooks（lefthook）編集ルール
@@ -44,7 +45,21 @@ rustfmt が `lib.rs` 等から子モジュールを辿って同じファイル�
 
 - pre-commit の `rustfmt --check --edition 2021 {staged_files}` は `ci.yml` の `fmt` ジョブ（`cargo fmt --all --check`）と重複するが、staged ファイル限定で 1 ファイル 0.1 秒・大きなクレートの `lib.rs` を含む 5 ファイルでも 0.94 秒のため維持する（2026-10-11 計測・決定）
     - 以前の `cargo fmt --check -- {staged_files}` は workspace 全体（約 550 ターゲット）を毎回検査し、staged 1 ファイルでも約 3.1 秒かかっていた
-    - rustfmt 単体は `Cargo.toml` を読まず既定 edition が 2015 になるため `--edition` を明示している。全クレート・`templates/`・`examples/`・`bench/` の `Cargo.toml` は `edition = "2021"` で統一されている。edition を変えるクレートが出たら、フックの `--edition` を見直す（混在するならクレートごとに分ける）
+    - rustfmt 単体は `Cargo.toml` を読まず既定 edition が 2015 になるため `--edition` を明示している。全クレート・`templates/`・`examples/`・`bench/` の `Cargo.toml` は `edition = "2021"` で統一されている。edition を変えるクレートが出たら、下記「rustfmt の edition 指定」の箇所をすべて見直す（混在するならクレートごとに分ける）
+
+## rustfmt の edition 指定
+
+rustfmt を直接呼ぶ箇所は `Cargo.toml` の edition を読まないため、`--edition` を明示し、値を揃える。
+edition を変更するときは以下をすべて同じ値へ更新する（`cargo fmt` は `Cargo.toml` から edition を読むため対象外）。
+
+| 箇所 | 用途 | 現在値 |
+| --- | --- | --- |
+| `lefthook.yml` の pre-commit `rust: rustfmt --check (staged files)` | staged `*.rs` の整形チェック | `--edition 2021` |
+| `.claude/settings.json` の PostToolUse（`Edit\|Write`） | Claude が編集した `*.rs` の自動整形 | `--edition 2021` |
+
+PostToolUse の rustfmt は編集をブロックしない方針とする。jq・rustfmt が無い環境では何もせず exit 0、
+rustfmt が失敗した（構文エラー等で整形できなかった）ときは stderr へ警告を出して exit 1（非ブロッキングエラー）で通知する。
+exit 2 は Claude へのブロッキングフィードバック扱いになるため使わない。
 
 ## 手元で CI 相当を確認する
 

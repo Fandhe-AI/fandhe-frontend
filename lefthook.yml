@@ -24,8 +24,10 @@ pre-commit:
     # かかっていた。workspace 全体の fmt は CI の `fmt` ジョブが担うため、
     # ここでは rustfmt を直接呼んで staged ファイル（と、その子モジュール）に
     # 限定する。rustfmt 単体は Cargo.toml を読まず既定 edition が 2015 になる
-    # ため、全クレート共通の `edition = "2021"` を明示する（edition を変える
-    # クレートが出たらここも更新する。`.claude/rules/git-hooks.md` 参照）。
+    # ため、全クレート共通の `edition = "2021"` を明示する。同じ値を
+    # `.claude/settings.json` の PostToolUse（rustfmt 自動整形）でも指定して
+    # おり、edition を変えるときは両方を揃えて更新する
+    # （`.claude/rules/git-hooks.md` の「rustfmt の edition 指定」参照）。
     - name: "rust: rustfmt --check (staged files)"
       glob: "*.rs"
       run: rustfmt --check --edition 2021 {staged_files}
