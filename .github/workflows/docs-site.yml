@@ -108,6 +108,10 @@ jobs:
         # フルビルドへ自然にフォールバックする fail-open 設計であり、
         # 正当性の前提にしない（restore/save いずれの失敗もジョブを
         # 失敗させない）。
+        # キーの版セグメント（`-v2-`）は保存内容（Cargo.toml の `[profile]`・
+        # ビルドコマンド等）を変えたら上げる（docs/ci/hosted-runner-migration.md
+        # §3.3。既存キーに exact hit すると再保存されず、古い成果物のまま依存を
+        # 毎回再ビルドするため）。
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -115,9 +119,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: docs-site-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
+          key: docs-site-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            docs-site-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+            docs-site-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: "build: generate site into dist"
         # linkcheck は build_site() 内蔵（crates/docs-site/src/linkcheck.rs）。

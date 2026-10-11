@@ -2330,6 +2330,10 @@ jobs:
         # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
         # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
         # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        # キーの版セグメント（`-v2-`）は保存内容（Cargo.toml の `[profile]`・
+        # ビルドコマンド等）を変えたら上げる（docs/ci/hosted-runner-migration.md
+        # §3.3。既存キーに exact hit すると再保存されず、古い成果物のまま依存を
+        # 毎回再ビルドするため）。
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -2338,9 +2342,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
+          key: clippy-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+            clippy-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Show toolchain
         run: rustup show && cargo --version
@@ -2482,7 +2486,7 @@ jobs:
         # job family prefix `clippy-wasm32-` で `clippy-`（host target clippy）・
         # release.yml の検証ビルド（専用 CARGO_TARGET_DIR 隔離・cache 不使用）と
         # 分離し、イシュー #1192 型の rlib 汚染がキャッシュ経由で流入する経路を
-        # 作らない（`clippy-` の restore-keys は `clippy-${os}-...` 形のため
+        # 作らない（`clippy-` の restore-keys は `clippy-v2-${os}-...` 形のため
         # `clippy-wasm32-` キーとプレフィックス衝突しない）。miss 時はフル
         # ビルドへ自然にフォールバックする fail-open 設計であり、正当性の前提に
         # しない（restore/save いずれの失敗もジョブを失敗させない）。ツール
@@ -2491,6 +2495,10 @@ jobs:
         # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
         # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
         # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        # キーの版セグメント（`-v2-`）は保存内容（Cargo.toml の `[profile]`・
+        # ビルドコマンド等）を変えたら上げる（docs/ci/hosted-runner-migration.md
+        # §3.3。既存キーに exact hit すると再保存されず、古い成果物のまま依存を
+        # 毎回再ビルドするため）。
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -2499,9 +2507,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
+          key: clippy-wasm32-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+            clippy-wasm32-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Show toolchain
         run: rustup show && cargo --version
@@ -2644,6 +2652,10 @@ jobs:
         # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
         # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
         # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        # キーの版セグメント（`-v2-`）は保存内容（Cargo.toml の `[profile]`・
+        # ビルドコマンド等）を変えたら上げる（docs/ci/hosted-runner-migration.md
+        # §3.3。既存キーに exact hit すると再保存されず、古い成果物のまま依存を
+        # 毎回再ビルドするため）。
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -2652,9 +2664,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
+          key: wasm-full-feature-matrix-baseline-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            wasm-full-feature-matrix-baseline-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+            wasm-full-feature-matrix-baseline-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Show toolchain
         run: rustup show && cargo --version
@@ -2759,6 +2771,10 @@ jobs:
         # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
         # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
         # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        # キーの版セグメント（`-v2-`）は保存内容（Cargo.toml の `[profile]`・
+        # ビルドコマンド等）を変えたら上げる（docs/ci/hosted-runner-migration.md
+        # §3.3。既存キーに exact hit すると再保存されず、古い成果物のまま依存を
+        # 毎回再ビルドするため）。
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -2767,9 +2783,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
+          key: wasm-full-feature-matrix-wiring-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            wasm-full-feature-matrix-wiring-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+            wasm-full-feature-matrix-wiring-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Show toolchain
         run: rustup show && cargo --version
@@ -2931,6 +2947,10 @@ jobs:
         # restore と save を分割する（2026-10-11 キャッシュ棚卸し、
         # docs/ci/hosted-runner-migration.md §3.4・§5.9）: 本ステップは復元のみを
         # 行い、保存はジョブ末尾の「cache: save」ステップが main push 時だけ行う。
+        # キーの版セグメント（`-v2-`）は保存内容（Cargo.toml の `[profile]`・
+        # ビルドコマンド等）を変えたら上げる（docs/ci/hosted-runner-migration.md
+        # §3.3。既存キーに exact hit すると再保存されず、古い成果物のまま依存を
+        # 毎回再ビルドするため）。
         id: cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -2939,9 +2959,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
+          key: wasm-full-feature-matrix-scope-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            wasm-full-feature-matrix-scope-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+            wasm-full-feature-matrix-scope-v2-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Show toolchain
         run: rustup show && cargo --version

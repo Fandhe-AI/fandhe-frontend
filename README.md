@@ -125,6 +125,8 @@ make lint
 全ターゲット一覧は `make help` で確認してください（Make を使わない場合の同等コマンドは `scripts/help.sh`）。
 Makefile は薄い入口で、処理の定義は `scripts/` にあります（編集ルール: `.claude/rules/makefile.md`）。
 
+ビルド成果物（`target/`）は数十 GB に膨らみやすいため、ルート `Cargo.toml` の `[profile.dev.package."*"]` で依存クレート（workspace 外）のデバッグ情報を行番号のみにしています（`dev`・`test` に効き、本リポのクレートは full debuginfo のままです。panic 位置・バックトレースの行番号は残り、デバッガで依存の変数・型を見られなくなるだけです）。溜まった古い成果物は `cargo install cargo-sweep` のうえ `cargo sweep --time 14`（14 日以上使われていない成果物を削除）や `cargo sweep --installed`（rustup に現存しないツールチェーンでビルドした成果物を削除）で消せます。
+
 ### lefthook によるローカル検証
 
 `make setup` は lefthook が導入済みの環境で hooks を有効化します

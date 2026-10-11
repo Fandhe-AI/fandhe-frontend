@@ -103,7 +103,21 @@ fail-open 前提（§3.4）の裏付けとして常に成立していなけれ�
 ### 3.3 キャッシュキー設計
 
 - キーは `os` + Rust toolchain バージョン + `hashFiles('Cargo.lock')` +
-  **ジョブ系統（job family）** を含める。
+  **ジョブ系統（job family）** + **版セグメント** を含める。形は
+  `<系統>-v<N>-${{ runner.os }}-<toolchain 世代>-<Cargo.lock hash>`
+  （例: `clippy-v2-Linux-b940084d7eb6-<hash>`）。
+- **版セグメント（`-v<N>-`）**: ルート `Cargo.toml` の `[profile]`・ビルド
+  コマンド・キャッシュ対象 path など、キーのハッシュ対象外で保存内容が変わる
+  変更をしたら上げる（key と restore-keys を同時に、`ci.yml` の 5 系統と
+  `docs-site.yml` を揃えて）。上げないと既存キーに exact hit し、復元した
+  成果物の fingerprint が合わず依存を毎回再ビルドするうえ、exact hit では
+  保存がスキップされるため新しい内容が永久に保存されない。旧版への
+  restore-keys フォールバックは付けない（中身が合わず復元時間だけかかる）。
+  `v2`（2026-10-11）は `[profile.dev.package."*"] debug = "line-tables-only"`
+  の追加による bump（依存の debuginfo に加え、依存のビルドスクリプト・
+  proc-macro が debuginfo なし → 行番号付きに変わり、それらに依存する crate の
+  `-C metadata` も連鎖して変わる）。それ以前のキーは版セグメントを持たない
+  `<系統>-${{ runner.os }}-…` 形だった
 - **toolchain バージョン**は `rustc -vV` の `commit-hash` 先頭 12 文字
   （`steps.toolchain.outputs.cachekey`、例: `b940084d7eb6`）。runner image の
   更新で stable の rustc が変わるとキーも変わり、旧 rustc の `target` に
@@ -129,7 +143,8 @@ fail-open 前提（§3.4）の裏付けとして常に成立していなけれ�
   キャッシュキーを異なる prefix で分離する。この分離方針は #1226（契約
   テスト再設計）が既存ガードステップ（無ハッシュ cdylib rlib 削除ガード）の
   存続・緩和を判断する際の入力とする。
-- restore-keys は完全一致キーの次に `os + toolchain` までのプレフィックスへ
+- restore-keys は完全一致キーの次に `系統 + 版 + os + toolchain` までの
+  プレフィックス（`<系統>-v<N>-${{ runner.os }}-<toolchain 世代>-`）へ
   フォールバックし、`Cargo.lock` 差分時もある程度のキャッシュヒットを得る。
 - **Phase 2 実装者向けの契約制約（PR #1244 レビュー指摘、イシュー #1226）**:
   `crates/xtask/tests/workflow_shared_target_contract.rs` の
