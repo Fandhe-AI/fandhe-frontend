@@ -140,7 +140,8 @@ paths:
 - **保存は main push だけ**: PR の merge ref（`refs/pull/N/merge`）に保存したキャッシュは当該 PR からしか使えないのに上限を共有し、main のキャッシュを追い出す。`ci.yml` の `clippy`・`clippy-wasm32`・`wasm-full-feature-matrix-baseline`/`-wiring`/`-scope` は `actions/cache/restore`（`id: cache`）とジョブ末尾の `actions/cache/save`（`if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'`、`key: ${{ steps.cache.outputs.cache-primary-key }}`、`continue-on-error: true`）に分けている。save の `path` は restore と完全に一致させる。main push 専用の `docs-site.yml` は一体型の `actions/cache` のままでよい
 - キーにはジョブ系統の prefix を付け、系統をまたいで共有しない（#1192 の rlib 汚染対策、§3.3）。SHA や run_id などの一意値をキーに入れない
 - キーのハッシュ対象はワークスペースルートの `Cargo.lock` だけ（`hashFiles('Cargo.lock')`）。`**/Cargo.lock` は `examples/`・`templates/`・`.agents/skills/*/samples/` 等の入れ子の Cargo.lock（ジョブがビルドしない独立プロジェクト）まで拾い、スキル同期などの無関係な変更でキーが変わる。toolchain 世代（`rustc -vV` の commit-hash 先頭 12 文字）は必ずキーに入れる（§3.3）。入れないと runner image 更新後も古い toolchain の成果物に exact hit し続け、exact hit では再保存されないため依存を毎回ビルドし直す
-- `restore-keys` は `<系統>-${{ runner.os }}-<toolchain 世代>-` までの前方一致にし、`Cargo.lock` が変わっても cold にしない（toolchain 世代をまたいだ部分一致はさせない）
+- `restore-keys` は `<系統>-v<N>-${{ runner.os }}-<toolchain 世代>-` までの前方一致にし、`Cargo.lock` が変わっても cold にしない（toolchain 世代・版セグメントをまたいだ部分一致はさせない）
+- **保存内容（ルート `Cargo.toml` の `[profile]`・ビルドコマンド・path）を変えたらキーの版セグメント（`<系統>-v<N>-`）を上げる**。key と restore-keys を同時に、`ci.yml` の 5 系統と `docs-site.yml` を揃えて上げる。上げないと既存キーに exact hit したまま依存を毎回再ビルドし、exact hit では保存がスキップされるため新しい内容が永久に保存されない。旧版への restore-keys フォールバックは付けない。現行は `v2`（`[profile.dev.package."*"]` の追加による bump、`docs/ci/hosted-runner-migration.md` §3.3）
 - runner image の更新で rustc が変わるとキー（toolchain 世代）が変わり、旧世代のキャッシュは 7 日後に消えるまで上限を占有する。10-07〜10-08 は旧世代 9 件・約 6.5GB が残り、現行世代の main キャッシュが追い出されて miss が出た
 - **サイズ**: 1 世代の合計（現行は lockfile hash 1 つあたり 6 系統で約 0.5GB）が 10GB に余裕をもって収まるようにする。キャッシュ系統を増やすときは 1 件のサイズ × 系統数を見積もる。runner image 更新で 1 件のサイズが急増した例がある（`docs/ci/hosted-runner-migration.md` §5.9「未解決」）
 - **追い出されても hit する設計**: 毎回読まれる main の最新キャッシュは LRU で最後まで残る。キー切替で古い世代が追い出されても、新しい世代が保存済みならミスにならない。この状態を保てていれば上限を上げる必要はない
@@ -148,7 +149,7 @@ paths:
 - 実測（変更前、直近 27 run）: 使用量 9.55GB / 36 件。10-09 以降のヒットは exact 81%・partial 16%・miss 3%。系統ごとのジョブ時間とトレードオフは `docs/ci/hosted-runner-migration.md` §5.9
 - 現状（2026-10-11、#3788 マージ後）: 10.1GB / 43 件。大半は旧 toolchain 世代 `48a229ceaefd`（10-07〜10-08 作成、1 件最大約 2GB）と、保存を main に限る前の PR merge ref の保存で、7 日間アクセスが無ければ削除される。現行世代（`b940084d7eb6`）の main キャッシュは lockfile hash 1 つあたり 6 系統で約 0.5GB
 - 不要になったキャッシュの削除は `gh cache delete <id> -R Fandhe-AI/fandhe-frontend`。全 PR・main で共有する状態のため、一覧で対象（key・ref・最終アクセス）を確認してから行う
-- **PR チェックリスト**: ワークフローのキャッシュを追加・変更する PR では、効果の計測・保存は main push のみ・キー設計（ルートの `Cargo.lock`・toolchain 世代・一意値なし・`restore-keys`）・1 世代のサイズ見積もりを確認したことを PR 本文に書く
+- **PR チェックリスト**: ワークフローのキャッシュを追加・変更する PR では、効果の計測・保存は main push のみ・キー設計（ルートの `Cargo.lock`・toolchain 世代・版セグメント・一意値なし・`restore-keys`）・1 世代のサイズ見積もりを確認したことを PR 本文に書く
 
 ### 計測方法
 

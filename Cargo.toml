@@ -59,3 +59,22 @@ opt-level = 1
 opt-level = 1
 [profile.dev.package.fandhe-frontend-pre-styled-ui]
 opt-level = 1
+
+# 依存クレート（workspace メンバー以外）のデバッグ情報を行番号のみにする。
+# ローカルの `target/` は数十 GB に膨らむことがあり、依存グラフ全体の full debuginfo
+# （統合テスト・example の各バイナリへ静的リンクされる）が容量とリンク時間を押し上げる。
+# 開発時に依存の内部変数・型をデバッガで追う必要は薄いため、それを諦めて両方を減らす。
+# - 残るもの: panic 位置・バックトレースの file:line・プロファイラの行番号
+# - 失うもの: デバッガ（lldb / gdb）で依存クレートの変数・型を見る機能のみ
+# - `"*"` はメンバー以外にだけ効くため、本リポのクレートは full debuginfo のまま。
+#   上記のメンバー別 `opt-level = 1` 上書きとは対象が重ならない
+# - 依存のビルドスクリプト・proc-macro（`build-override` 側の既定は debuginfo なし）にも
+#   適用され行番号付きになる（`build-override` より `package."*"` が優先されるため
+#   打ち消せない）。増分は依存本体の削減に比べて小さい
+# - `test` プロファイルは `dev` を継承し package 上書きも継承されるため `cargo test` にも
+#   効く（`[profile.test.*]` は置かない方針のまま）。`release`・`bench`（`release` 継承）は
+#   既定どおり debuginfo なしで影響しない
+# - CI の target キャッシュは本設定で中身が変わるため、キーの版セグメントを上げた
+#   （`docs/ci/hosted-runner-migration.md` §3.3）
+[profile.dev.package."*"]
+debug = "line-tables-only"
