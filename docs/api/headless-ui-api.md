@@ -519,6 +519,9 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    （`same_width == false` のとき `--fandhe-reference-width` は出力しない、
    `docs/design/anchor-positioning-design.md` §7）。
 8. `password_input` はパスワード値そのものを一切扱わない。
+   イシュー #3815 で `autocomplete` モジュールの固定語彙型 `AutocompleteToken`
+   （field 名 + 任意の `webauthn`）と `input_with_autocomplete` を追加した
+   （`current-password webauthn` 等。任意の `&str` を受ける経路は持たない）。
    `input`/`PasswordInput` は `value` を出力・保持する API を持たず、状態
    機械は表示切替の bool（`visible`）のみをフィールドに持つ。パスワード値が
    `Debug`/`Hydrate` の出力・エラーメッセージ・ログのいずれにも現れる余地

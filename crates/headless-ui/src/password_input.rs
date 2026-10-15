@@ -125,6 +125,7 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_controls, aria_hidden, aria_invalid, aria_pressed};
+use crate::autocomplete::{AutocompleteField, AutocompleteToken};
 use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required, data_state};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -266,6 +267,30 @@ impl PasswordAutocomplete {
             Self::NewPassword => "new-password",
         }
     }
+
+    /// 末尾に `webauthn` トークンを付けた [`AutocompleteToken`] を返す
+    /// （passkey の conditional mediation 用、イシュー #3815）。
+    ///
+    /// [`input_with_autocomplete`] へ渡して使う。値は固定語彙で、任意文字列は
+    /// 受け付けない。
+    #[must_use]
+    pub const fn with_webauthn(self) -> AutocompleteToken {
+        AutocompleteToken::new(self.field()).with_webauthn()
+    }
+
+    const fn field(self) -> AutocompleteField {
+        match self {
+            Self::CurrentPassword => AutocompleteField::CurrentPassword,
+            Self::NewPassword => AutocompleteField::NewPassword,
+        }
+    }
+}
+
+impl From<PasswordAutocomplete> for AutocompleteToken {
+    /// `webauthn` なしのトークンへ写像する（`as_str` 出力は不変）。
+    fn from(v: PasswordAutocomplete) -> Self {
+        AutocompleteToken::new(v.field())
+    }
 }
 
 /// `password_input` モジュールの各パーツ関数へ共通で渡す props
@@ -375,13 +400,40 @@ pub fn control(
 /// （イシュー #1614）。
 #[must_use]
 pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &str)>) -> Node {
+    input_with_autocomplete(visible, props, props.autocomplete.into(), attrs)
+}
+
+/// [`input`] の `autocomplete` を固定語彙の [`AutocompleteToken`] で指定する版
+/// （`current-password webauthn` 等、イシュー #3815）。
+///
+/// - `props.autocomplete` は無視され、引数 `autocomplete` が優先される。
+/// - `autocomplete` へ任意の `&str` を渡す公開 API は存在せず、出力は
+///   [`AutocompleteToken::as_str`] の静的リテラルのみ（A05）。`attrs` 経由の
+///   `autocomplete` は `INPUT_RESERVED` により除去される。
+/// - `type=password`/`type=text` の input に `username` は不適切なため、
+///   [`AutocompleteField::Username`] 指定時は `props.autocomplete` へ
+///   フォールバックする（fail-safe）。
+/// - `new-password webauthn` は仕様上有効なため許容するが、通常は
+///   `current-password webauthn` を使う。
+#[must_use]
+pub fn input_with_autocomplete(
+    visible: bool,
+    props: &PasswordInputProps<'_>,
+    autocomplete: AutocompleteToken,
+    attrs: Vec<(&str, &str)>,
+) -> Node {
+    let autocomplete = if autocomplete.field() == AutocompleteField::Username {
+        props.autocomplete.into()
+    } else {
+        autocomplete
+    };
     let attrs = drop_reserved(attrs, INPUT_RESERVED);
     let input_id = control_input_id(props.id);
     let ty = if visible { "text" } else { "password" };
     let mut merged: Vec<(&str, &str)> = vec![
         ("type", ty),
         ("id", input_id.as_str()),
-        ("autocomplete", props.autocomplete.as_str()),
+        ("autocomplete", autocomplete.as_str()),
         data_state(visible_data_state(visible)),
         ("autocapitalize", "off"),
         ("spellcheck", "false"),

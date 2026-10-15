@@ -207,6 +207,7 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "PasswordInputProps.invalid", kind: "bool", default: "", description: "`root`/`control`/`input`/`label`/`indicator` に `data-invalid` を、`input` に `aria-invalid=\"true\"` を付与する。" },
         ArgRow { name: "PasswordInputProps.required", kind: "bool", default: "", description: "`label`/`input` にネイティブ `required`（`input` のみ）+ `data-required` を付与する。" },
         ArgRow { name: "PasswordInputProps.autocomplete", kind: "PasswordAutocomplete", default: "", description: "`CurrentPassword`（`autocomplete=\"current-password\"`）または `NewPassword`（`\"new-password\"`）。" },
+        ArgRow { name: "input_with_autocomplete(visible, props, token, attrs)", kind: "AutocompleteToken", default: "", description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken` で指定する（`PasswordAutocomplete::CurrentPassword.with_webauthn()` で `current-password webauthn`）。任意文字列は受け付けない。`attrs` の `autocomplete` は除去される。" },
         ArgRow { name: "indicator(props)", kind: "&PasswordInputProps", default: "", description: "`disabled`/`invalid`/`readonly` の状態反映（`aria-hidden=\"true\"` 固定、意味論は `visibility_trigger` が担う）。" },
     ],
     examples: &[

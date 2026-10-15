@@ -211,11 +211,11 @@ fn module_counts_are_consistent_with_the_source_tree() {
     let scan = scan_headless_ui_src(&headless_ui_src_dir());
 
     assert_eq!(PRIMITIVES.len(), 75);
-    assert_eq!(FOUNDATION_MODULES.len(), 9);
+    assert_eq!(FOUNDATION_MODULES.len(), 10);
     assert_eq!(
         PRIMITIVES.len() + FOUNDATION_MODULES.len() + 1,
         scan.total_rs_files,
-        "PRIMITIVES(75) + FOUNDATION_MODULES(9) + lib.rs(1) が \
+        "PRIMITIVES(75) + FOUNDATION_MODULES(10) + lib.rs(1) が \
          crates/headless-ui/src/*.rs の実測総数({})と一致しません",
         scan.total_rs_files
     );

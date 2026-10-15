@@ -41,9 +41,9 @@
 //! が加わり 67 → 68。#2068 で `command`
 //! が加わり 66 → 67。#2065 で `item` が加わり 65 → 66。#2062 で
 //! `input_group`・#2059 で `button_group` が加わり 63 → 65）、基盤モジュール
-//! （[`FOUNDATION_MODULES`]）が 9 件、`lib.rs` を加えて 84 件が
+//! （[`FOUNDATION_MODULES`]）が 10 件（#3815 で `autocomplete` が加わり 9 → 10）、`lib.rs` を加えて 86 件が
 //! `crates/headless-ui/src/*.rs` の総数（実測:
-//! `ls crates/headless-ui/src/*.rs | wc -l` => 84、
+//! `ls crates/headless-ui/src/*.rs | wc -l` => 86、
 //! `grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l`
 //! => 74）。この判別規約とコードの突合は `tests/primitives_catalog.rs` の
 //! 責務。
@@ -729,7 +729,7 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
     },
 ];
 
-/// 基盤モジュール（部品ではない）9 件。設計 §6 の判別規約により
+/// 基盤モジュール（部品ではない）10 件。設計 §6 の判別規約により
 /// `anatomy(` を呼ばない（`anatomy` 自身のみ定義元として例外）
 /// `crates/headless-ui/src/*.rs` として定まる。
 ///
@@ -740,6 +740,8 @@ pub const FOUNDATION_MODULES: &[&str] = &[
     "anatomy",
     // ARIA 属性ヘルパ。
     "aria",
+    // autocomplete 属性値の固定語彙型（#3815）。
+    "autocomplete",
     // 色空間変換。
     "color",
     // data-* 属性出力ヘルパ。
@@ -1089,8 +1091,8 @@ mod tests {
     #[test]
     fn foundation_list_has_nine_unique_modules() {
         let set: BTreeSet<&str> = FOUNDATION_MODULES.iter().copied().collect();
-        assert_eq!(FOUNDATION_MODULES.len(), 9);
-        assert_eq!(set.len(), 9, "FOUNDATION_MODULES に重複がある");
+        assert_eq!(FOUNDATION_MODULES.len(), 10);
+        assert_eq!(set.len(), 10, "FOUNDATION_MODULES に重複がある");
     }
 
     /// `find` / `entries` / `page_paths` の基本契約。
