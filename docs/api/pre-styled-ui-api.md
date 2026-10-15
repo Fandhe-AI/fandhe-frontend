@@ -73,7 +73,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `radio_group`（§4c 参照） | [radio-group](../../site/themes/radio-group.md) |
 | headless ラッパー | `avatar`（§4b 参照） | [avatar](../../site/themes/avatar.md) |
 | headless ラッパー | `checkbox`（§4e 参照） | [checkbox](../../site/themes/checkbox.md) |
-| 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照）。`input` は共通 shape 軸（`InputProps.shape: Option<Shape>`、既定 `None`）を持ち `Pill` のみ登録（`Circle` は未登録、イシュー #3117） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
+| 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照）。`input` は型付き autocomplete 版 `input::input_with_autocomplete` と `AutocompleteToken`/`AutocompleteField` の再エクスポートを持つ（#3817）。`input` は共通 shape 軸（`InputProps.shape: Option<Shape>`、既定 `None`）を持ち `Pill` のみ登録（`Circle` は未登録、イシュー #3117） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
 | 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | 静的フォーム部品 | `input_group`（§4f-3 参照。入力欄の前後 addon、軸なし） | [input-group](../../site/themes/input-group.md) |
@@ -89,7 +89,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `sidebar`（§4m 参照。アプリシェル用サイドバー。22 パーツ構成、variant/collapsible/side は headless の data-variant/data-collapsible/data-side を AttrEq 参照するのみで class ベース軸を持たない） | [sidebar](../../site/themes/sidebar.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
-| headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
+| headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照。型付き autocomplete〔`input_with_autocomplete` / `AutocompleteToken` / `AutocompleteField`〕は headless-ui から透過再エクスポート、#3817） | [password-input](../../site/themes/password-input.md) |
 | headless ラッパー | `slider`（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） | [slider](../../site/themes/slider.md) |
 | headless ラッパー | `rating_group`（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） | [rating-group](../../site/themes/rating-group.md) |
 | headless ラッパー | `segment_group`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） | [segment-group](../../site/themes/segment-group.md) |

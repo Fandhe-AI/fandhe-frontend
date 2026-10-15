@@ -28,6 +28,10 @@
 //! import し、実際の描画は本モジュールの styled [`root`]（および再
 //! エクスポート済みのパーツ関数）を組み合わせて構築すること。
 //!
+//! 型付き autocomplete（`webauthn` 付与、#3815/#3817）は headless の
+//! `input_with_autocomplete` と `AutocompleteToken`/`AutocompleteField` を
+//! 透過再エクスポートする。任意 `&str` を受ける経路は持たない。
+//!
 //! # `data-state` 語彙について
 //!
 //! headless 層は表示切替を `"visible"`/`"hidden"` 語彙で表現する
@@ -180,9 +184,12 @@ use crate::recipe::{
 // import する。
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::password_input::{
-    control, indicator, input, label, visibility_trigger, PasswordAutocomplete,
-    PasswordInputAction, PasswordInputProps,
+    control, indicator, input, input_with_autocomplete, label, visibility_trigger,
+    PasswordAutocomplete, PasswordInputAction, PasswordInputProps,
 };
+// 型付き autocomplete（#3815/#3817）。`input_with_autocomplete` の引数型を
+// pre-styled-ui のパスだけで届かせる。任意 `&str` を受ける経路は持たない。
+pub use fandhe_frontend_headless_ui::autocomplete::{AutocompleteField, AutocompleteToken};
 
 /// headless `password_input` anatomy の `data-part` 一覧
 /// （`crates/headless-ui/src/password_input.rs` の `ANATOMY.part(...)`
