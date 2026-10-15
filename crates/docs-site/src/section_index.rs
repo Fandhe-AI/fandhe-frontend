@@ -94,6 +94,11 @@ pub const GUIDES: &[IndexCard] = &[
         description: "既存の HTML ページの div へコンポーネントを部分的にマウントする手順。",
     },
     IndexCard {
+        path: "/guides/ssr-embedding/",
+        title: "SSR 組み込みガイド",
+        description: "既存サーバーのハンドラから SSR で HTML を返す組み込み方法（執筆中）。",
+    },
+    IndexCard {
         path: "/guides/view-transitions/",
         title: "View Transitions",
         description: "クロスドキュメントおよび SPA 内でのビュー遷移を有効化する方法。",
