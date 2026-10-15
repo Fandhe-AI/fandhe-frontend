@@ -530,6 +530,9 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `input` に `data-state`・`autocapitalize="off"`・`spellcheck="false"` を
    固定付与した。`aria-pressed`（zag の `aria-expanded` に非追随）・
    `tabindex` 非付与（tab 順序に残す）は意図的な差分として維持する。
+   イシュー #3815 で `autocomplete` モジュールの固定語彙型 `AutocompleteToken`
+   （field 名 + 任意の `webauthn`）と `input_with_autocomplete` を追加した
+   （`current-password webauthn` 等。任意の `&str` を受ける経路は持たない）。
 9. イシュー #1615（ark-ui 公式 Data Attributes / Keyboard Support 表・Radix
    `one-time-password-field` 参照突合）で `pin_input` へ `PinInputProps`
    （disabled/readonly/invalid/required）を新設し、`root`/`label`/`input`

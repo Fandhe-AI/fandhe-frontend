@@ -234,3 +234,93 @@ fn children_text_is_escaped_end_to_end() {
     assert!(!html.contains("<script>alert(1)</script>"));
     assert!(html.contains("&lt;script&gt;"));
 }
+
+// --- イシュー #3815: autocomplete 固定語彙型（webauthn 対応） ---
+
+#[test]
+fn input_with_autocomplete_emits_webauthn_tokens() {
+    use fandhe_frontend_headless_ui::AutocompleteToken;
+    let p = props("pw");
+    let html = render(&password_input::input_with_autocomplete(
+        false,
+        &p,
+        PasswordAutocomplete::CurrentPassword.with_webauthn(),
+        vec![],
+    ));
+    assert!(
+        html.contains("autocomplete=\"current-password webauthn\""),
+        "{html}"
+    );
+    let html = render(&password_input::input_with_autocomplete(
+        false,
+        &p,
+        PasswordAutocomplete::NewPassword.with_webauthn(),
+        vec![],
+    ));
+    assert!(
+        html.contains("autocomplete=\"new-password webauthn\""),
+        "{html}"
+    );
+    let t: AutocompleteToken = PasswordAutocomplete::NewPassword.into();
+    assert_eq!(t.as_str(), "new-password");
+}
+
+#[test]
+fn input_keeps_legacy_autocomplete_output() {
+    let mut p = props("pw");
+    let html = render(&password_input::input(false, &p, vec![]));
+    assert!(html.contains("autocomplete=\"current-password\""), "{html}");
+    assert!(!html.contains("webauthn"));
+    p.autocomplete = PasswordAutocomplete::NewPassword;
+    let html = render(&password_input::input(false, &p, vec![]));
+    assert!(html.contains("autocomplete=\"new-password\""), "{html}");
+}
+
+#[test]
+fn autocomplete_attr_cannot_be_overridden_via_attrs() {
+    let p = props("pw");
+    let tok = PasswordAutocomplete::CurrentPassword.with_webauthn();
+    let html = render(&password_input::input_with_autocomplete(
+        false,
+        &p,
+        tok,
+        vec![("autocomplete", "\"><script>x</script>")],
+    ));
+    assert_eq!(html.matches("autocomplete=").count(), 1, "{html}");
+    assert!(html.contains("autocomplete=\"current-password webauthn\""));
+    assert!(!html.contains("<script>"));
+    let html = render(&password_input::input(
+        false,
+        &p,
+        vec![("autocomplete", "x")],
+    ));
+    assert_eq!(html.matches("autocomplete=").count(), 1, "{html}");
+}
+
+#[test]
+fn username_token_falls_back_to_props_autocomplete() {
+    use fandhe_frontend_headless_ui::{AutocompleteField, AutocompleteToken};
+    let p = props("pw");
+    let tok = AutocompleteToken::new(AutocompleteField::Username).with_webauthn();
+    let html = render(&password_input::input_with_autocomplete(
+        false,
+        &p,
+        tok,
+        vec![],
+    ));
+    assert!(html.contains("autocomplete=\"current-password\""), "{html}");
+    assert!(!html.contains("username"));
+}
+
+#[test]
+fn hostile_id_does_not_alter_autocomplete_value() {
+    let p = props("\"><img src=x onerror=1>");
+    let html = render(&password_input::input_with_autocomplete(
+        false,
+        &p,
+        PasswordAutocomplete::CurrentPassword.with_webauthn(),
+        vec![],
+    ));
+    assert!(html.contains("autocomplete=\"current-password webauthn\""));
+    assert!(!html.contains("<img"));
+}

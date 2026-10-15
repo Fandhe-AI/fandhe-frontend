@@ -522,6 +522,9 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`autocomplete`](mod@autocomplete): `autocomplete` 属性値の固定語彙型
+//!   [`autocomplete::AutocompleteToken`]（field 名 + 任意の `webauthn` トークン、
+//!   任意文字列は受け付けない。#3815）。
 //! - [`password_input`](mod@password_input): Root / Label / Control / Input /
 //!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替
 //!   （`"visible"`/`"hidden"`）の [`password_input::PasswordInput`] 状態機械
@@ -861,6 +864,7 @@ pub mod anatomy;
 pub mod angle_slider;
 pub mod aria;
 pub mod attachment;
+pub mod autocomplete;
 pub mod avatar;
 pub mod breadcrumb;
 pub mod bubble;
@@ -944,6 +948,8 @@ pub mod tooltip;
 pub mod tour;
 pub mod tree_view;
 pub mod visually_hidden;
+
+pub use autocomplete::{AutocompleteField, AutocompleteToken};
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
