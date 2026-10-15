@@ -1075,10 +1075,8 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// [`FIELD`] の Examples 節「Field group + separator」レンダラ（イシュー
-/// #2185）。`docs/design/reference-screenshots/shadcn-field-1.png`
-/// （Payment Method フォーム: 複数 field の縦積み・区切り線）の合成を
-/// 再現する。バリデーション・送信処理は実装しない（§3.25 規則 1）。
+/// [`FIELD`] の Examples 節「Username + passkey」レンダラ。styled `field::root` の
+/// 中で `input_with_autocomplete` に `username webauthn` の型付きトークンを渡す。
 fn ex_field_username_webauthn() -> Node {
     let f = fandhe_frontend_pre_styled_ui::input::FieldProps {
         id: "ex-themes-field-username-webauthn",
@@ -1151,6 +1149,10 @@ fn ex_password_input_webauthn() -> Node {
     )
 }
 
+/// [`FIELD`] の Examples 節「Field group + separator」レンダラ（イシュー
+/// #2185）。`docs/design/reference-screenshots/shadcn-field-1.png`
+/// （Payment Method フォーム: 複数 field の縦積み・区切り線）の合成を
+/// 再現する。バリデーション・送信処理は実装しない（§3.25 規則 1）。
 fn ex_field_group_and_separator() -> Node {
     let card_props = FieldProps {
         id: "ex-field-card-number",
