@@ -18,11 +18,10 @@
 //! 本クレートはテキスト・属性値をすべて `fandhe_frontend_core::text` / `fandhe_frontend_core::el` の
 //! attrs 経由で組み立て、独自のエスケープ処理・独自の raw 出力経路を持たない。
 //! `format!` によるタグ文字列の直接組み立ては行わない（`coding-rust.md`
-//! 「HTML 文字列の直接組み立て禁止」）。[`page_shell`] が前置する
-//! `<!DOCTYPE html>` のみ、ユーザー入力を一切含まない固定リテラルとして
-//! 文字列結合する（`fandhe_frontend_core::render` 済みの既定エスケープ済み HTML の前に
-//! 付与するのみであり、新たな迂回経路ではない）。[`Document::render`] も同様に
-//! `<!DOCTYPE html>\n` 固定リテラル以外は文字列結合しない。
+//! 「HTML 文字列の直接組み立て禁止」）。[`page_shell`] は [`Document`] へ委譲し、
+//! [`Document::render`] が前置する `<!DOCTYPE html>\n` のみがユーザー入力を一切含まない
+//! 固定リテラルとして文字列結合される（`fandhe_frontend_core::render` 済みの既定エスケープ済み
+//! HTML の前に付与するのみであり、新たな迂回経路ではない）。
 //!
 //! # スコープ外
 //!
@@ -49,7 +48,7 @@ pub mod document;
 pub mod router;
 pub mod routes;
 
-pub use document::Document;
+pub use document::{Document, ViewTransitions, VIEW_TRANSITION_CSS};
 
 /// ハイドレーション後にクライアント側の `click` イベントで参照される
 /// `id` 属性値。`fandhe-frontend-wasm-client`（TASK-6.2 系）がこの定数で DOM 要素を
@@ -294,9 +293,11 @@ pub fn detail_page(item: Option<&Item>) -> Node {
 /// `title` は [`fandhe_frontend_core::el`] の `<title>` 子ノードとして [`text`] 経由で
 /// 渡すため既定エスケープされる（PoC-3 の手動 `escape_html` 呼び出しより
 /// 安全な構造。`text()` を経由しない独自のエスケープ処理を持たない）。
-/// `<!DOCTYPE html>` はユーザー入力を一切含まない固定リテラルとして
-/// [`fandhe_frontend_core::render`] 済みの文字列の前に結合するのみであり、新たな
-/// エスケープ迂回経路ではない。
+/// 実装は [`Document`] への委譲（`ViewTransitions::InlineStyle` + `/static/style.css` +
+/// `/static/hydrate.js`）で、出力は委譲前と 1 バイトも変わらない（`tests/page_shell_golden.rs`
+/// が固定）。`<!DOCTYPE html>` の前置は [`Document::render`] 内の固定リテラルのみで、
+/// 新たなエスケープ迂回経路ではない。inline `<style>` を伴うため `style-src 'self'` 等の
+/// 厳格な CSP の下では [`Document`] を直接使うこと。
 ///
 /// `@view-transition { navigation: auto; }`（CSS Level 2 の at-rule）は
 /// Cross-Document View Transitions を有効化する。過去の `<meta
@@ -306,46 +307,11 @@ pub fn detail_page(item: Option<&Item>) -> Node {
 /// 出力するため、既定エスケープ経路を迂回しない。フレームワーク固有の
 /// JS ラッパーを必要としない（PoC-3 の検証結果を踏襲）。
 pub fn page_shell(title: &str, body: Node) -> String {
-    let head = el(
-        "head",
-        vec![],
-        vec![
-            el("meta", vec![("charset", "utf-8")], vec![]),
-            el(
-                "meta",
-                vec![
-                    ("name", "viewport"),
-                    ("content", "width=device-width, initial-scale=1"),
-                ],
-                vec![],
-            ),
-            el(
-                "style",
-                vec![],
-                vec![text("@view-transition { navigation: auto; }")],
-            ),
-            el("title", vec![], vec![text(title)]),
-            el(
-                "link",
-                vec![("rel", "stylesheet"), ("href", "/static/style.css")],
-                vec![],
-            ),
-        ],
-    );
-    let document_body = el(
-        "body",
-        vec![],
-        vec![
-            body,
-            el(
-                "script",
-                vec![("type", "module"), ("src", "/static/hydrate.js")],
-                vec![],
-            ),
-        ],
-    );
-    let html = el("html", vec![("lang", "ja")], vec![head, document_body]);
-    format!("<!DOCTYPE html>\n{}", fandhe_frontend_core::render(&html))
+    Document::new(title, body)
+        .view_transitions(ViewTransitions::InlineStyle)
+        .stylesheet("/static/style.css")
+        .script_module("/static/hydrate.js")
+        .render()
 }
 
 #[cfg(test)]

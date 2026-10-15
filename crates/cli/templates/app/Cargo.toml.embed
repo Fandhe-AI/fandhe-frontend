@@ -25,7 +25,7 @@ publish = false
 # のみ・公開 API 不変）に追随する。
 [dependencies]
 fandhe-frontend-core = "0.4.3"
-fandhe-frontend-app = "0.2.7"
+fandhe-frontend-app = "0.2.8"
 
 [dev-dependencies]
 
