@@ -197,6 +197,7 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
         "`visibility_trigger` は `button type=\"button\"` + `aria-pressed`（トグルボタンパターン）+ `aria-controls` で意味論を担う。`aria-label` は呼び出し側が付与する（国際化はアプリ側の責務）。zag は `aria-expanded`/`tabIndex: -1` を採用するが、本コンポーネントは意図的に追随しない（`aria-pressed` は input が展開/折り畳み対象領域でないため、tab 順序は Radix の「キーボード操作時はトリガーへフォーカス維持」と整合させ tabindex を付与しない。詳細はモジュール doc「参考サイトとの意図的な差分」節参照）。",
         "`PasswordInputProps` から `input` の id（`\"{id}-input\"`）を決定的に導出し、`label`/`visibility_trigger` へも同じ値を一貫伝播する。`name` 属性が必要な場合は `input` の `attrs` へ呼び出し側が付与する（reserved キーではない）。",
         "`Default` は Hidden（パスワードを隠す方が安全側の既定）。hydration 属性 `data-hydrate-visible` は fail-closed（未知値を `HydrateError` で拒否）。",
+        "passkey（WebAuthn の conditional mediation）向けに `current-password webauthn` を出す場合は、`PasswordAutocomplete::CurrentPassword.with_webauthn()` で作る `AutocompleteToken` を `input_with_autocomplete` へ渡す。出力は固定語彙の静的リテラルに限られ、任意の文字列を `autocomplete` へ渡す経路はない（`input` は webauthn なしのトークンを出力する）。",
         "ark-ui/zag の `ignorePasswordManagers` 相当（`data-1p-ignore` 等のパスワードマネージャ連携抑止属性）は本コンポーネントでは提供しない（機能プロップでありデータ属性の状態語彙ではないため、イシュー #1614 でも見送り）。",
     ],
     arguments: &[
@@ -206,8 +207,8 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "PasswordInputProps.readonly", kind: "bool", default: "", description: "`input` にネイティブ `readonly` + `data-readonly` を、6 パーツ全てに `data-readonly` を付与する。`visibility_trigger` にはネイティブ `disabled` を合成しない。" },
         ArgRow { name: "PasswordInputProps.invalid", kind: "bool", default: "", description: "`root`/`control`/`input`/`label`/`indicator` に `data-invalid` を、`input` に `aria-invalid=\"true\"` を付与する。" },
         ArgRow { name: "PasswordInputProps.required", kind: "bool", default: "", description: "`label`/`input` にネイティブ `required`（`input` のみ）+ `data-required` を付与する。" },
-        ArgRow { name: "PasswordInputProps.autocomplete", kind: "PasswordAutocomplete", default: "", description: "`CurrentPassword`（`autocomplete=\"current-password\"`）または `NewPassword`（`\"new-password\"`）。" },
-        ArgRow { name: "input_with_autocomplete(visible, props, token, attrs)", kind: "AutocompleteToken", default: "", description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken` で指定する（`PasswordAutocomplete::CurrentPassword.with_webauthn()` で `current-password webauthn`）。任意文字列は受け付けない。`attrs` の `autocomplete` は除去される。" },
+        ArgRow { name: "PasswordInputProps.autocomplete", kind: "PasswordAutocomplete", default: "", description: "`CurrentPassword`（`autocomplete=\"current-password\"`）または `NewPassword`（`\"new-password\"`）。`webauthn` 付きは持てないため、`PasswordAutocomplete::CurrentPassword.with_webauthn()` で `AutocompleteToken` を作り `input_with_autocomplete` へ渡す。" },
+        ArgRow { name: "input_with_autocomplete(visible, props, autocomplete, attrs)", kind: "bool, &PasswordInputProps, AutocompleteToken, ..", default: "", description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken` で指定する（`PasswordAutocomplete::CurrentPassword.with_webauthn()` で `current-password webauthn`）。引数のトークンが `props.autocomplete` より優先される。password 系以外（`Username` / `Email`）の field を渡した場合は `props.autocomplete` に戻る（fail-safe）。`attrs` の `autocomplete` は除去される。出力は静的リテラルのみで、任意文字列は受け付けない。" },
         ArgRow { name: "indicator(props)", kind: "&PasswordInputProps", default: "", description: "`disabled`/`invalid`/`readonly` の状態反映（`aria-hidden=\"true\"` 固定、意味論は `visibility_trigger` が担う）。" },
     ],
     examples: &[
@@ -215,6 +216,11 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
             title: "Invalid + new-password",
             description: "登録フォーム向けに `autocomplete=\"new-password\"` を指定し、`invalid`/`required` を立てた状態。`aria-invalid=\"true\"` が `input` に付与される。",
             render: ex_password_input_invalid,
+        },
+        ExampleEntry {
+            title: "Passkey（current-password webauthn）",
+            description: "passkey のフォーム自動入力を使うログインフォーム向けに、`PasswordAutocomplete::CurrentPassword.with_webauthn()` を `input_with_autocomplete` へ渡した例。`input` に `autocomplete=\"current-password webauthn\"` が出力される。WebAuthn の呼び出し自体はアプリ側の責務。",
+            render: ex_password_input_webauthn,
         },
         ExampleEntry {
             title: "Read-only",
@@ -1059,6 +1065,48 @@ fn ex_password_input_invalid() -> Node {
         autocomplete: PasswordAutocomplete::NewPassword,
     };
     let body = vec![password_input_demo_node(&props, "New password")];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// `current-password webauthn` を `input_with_autocomplete` で出す例。
+/// 型付き `AutocompleteToken` の静的リテラルのみが `autocomplete` へ入る。
+fn ex_password_input_webauthn() -> Node {
+    let props = PasswordInputProps {
+        id: "pw-webauthn-example",
+        disabled: false,
+        readonly: false,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let token = PasswordAutocomplete::CurrentPassword.with_webauthn();
+    let body = vec![password_input::root(
+        false,
+        &props,
+        vec![],
+        vec![
+            password_input::label(&props, vec![], vec![text("Password")]),
+            password_input::control(
+                false,
+                &props,
+                vec![],
+                vec![
+                    password_input::input_with_autocomplete(false, &props, token, vec![]),
+                    password_input::visibility_trigger(
+                        false,
+                        &props,
+                        vec![("aria-label", "Show password")],
+                        vec![password_input::indicator(
+                            false,
+                            &props,
+                            vec![],
+                            vec![text("👁")],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )];
     div(vec![("class", "primitives-demo-frame")], body)
 }
 

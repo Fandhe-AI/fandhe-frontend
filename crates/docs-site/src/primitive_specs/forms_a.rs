@@ -92,6 +92,7 @@
 use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::angle_slider::AngleSliderProps;
+use hui::autocomplete::{AutocompleteField, AutocompleteToken};
 use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker;
@@ -1558,6 +1559,37 @@ fn ex_field() -> Node {
     )
 }
 
+/// `input_with_autocomplete` による `username webauthn` の例。値は型付き
+/// `AutocompleteToken` の静的リテラルのみで、任意文字列は入らない。
+fn ex_field_username_webauthn() -> Node {
+    let props = FieldProps {
+        id: "f-username-webauthn",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let token = AutocompleteToken::new(AutocompleteField::Username).with_webauthn();
+    let body = vec![field::root(
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text("Username")]),
+            field::input_with_autocomplete(
+                &props,
+                token,
+                vec![("type", "text"), ("name", "username")],
+            ),
+        ],
+    )];
+    wrap_example(
+        "passkey ログインのユーザー名欄を username webauthn で指定する Field の例です。",
+        body,
+    )
+}
+
 /// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
 /// `data-scope`/`data-part`/`data-invalid`/`data-disabled`/`data-required`
 /// 属性セレクタで見た目を組み立てる例を示す（イシュー #1607）。CSS は
@@ -1671,6 +1703,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         "aria-describedby は invalid のとき error id を先頭に、has_helper_text のとき helper id を続けて空白区切りで決定的に合成する（field.rs:249-258, 305-311）。",
         "invalid のとき input/textarea/select へ aria-invalid=\"true\" を付与し、error_text を表示状態にする（field.rs:118-119）。",
         "select はネイティブ readonly を出力しない（HTML 仕様上 <select readonly> が無効なため、data-readonly は他コントロール同様に出力する、field.rs:60-63）。バリデーションの実行自体は利用者側の通常の Rust コードが担い、本モジュールはその結果（invalid/エラーメッセージ）を構造・ARIA へ反映するのみである（`docs/policy/intentional-non-adoption.md` §3.25）。",
+        "`input_with_autocomplete` で `autocomplete` を固定語彙の型（`username webauthn` など、passkey ログインのユーザー名欄向け）で指定できる。任意の文字列を `autocomplete` へ渡す経路はなく、既存の `input` と `extra_attrs` の生文字列経路は互換のために残っている。",
         "error_text/required_indicator は非該当状態で hidden 存在属性を付与する fail-closed 描画とする（ark-ui の条件描画を SSR で静的に写像したもの、field.rs::error_text/required_indicator）。has_helper_text は zag.js の MutationObserver による動的検知を静的フラグへ写像したものであり、呼び出し側は実際に helper_text パーツを描画するかどうかと整合させる契約を持つ。",
     ],
     arguments: &[
@@ -1722,6 +1755,11 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             title: "Required + helper text",
             description: "required_indicator・helper_text・error_text を併用した例です。",
             render: ex_field,
+        },
+        ExampleEntry {
+            title: "Username + passkey（username webauthn）",
+            description: "`AutocompleteToken::new(AutocompleteField::Username).with_webauthn()` を `input_with_autocomplete` へ渡し、`autocomplete=\"username webauthn\"` を出力する例です。",
+            render: ex_field_username_webauthn,
         },
         ExampleEntry {
             title: "自前 CSS の最小例",
