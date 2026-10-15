@@ -12,6 +12,7 @@
 mod auth_dropdown_panel;
 mod auth_oauth_consent;
 mod auth_otp_verify;
+mod auth_passkey_sign_in;
 mod auth_split_accent_panel;
 mod auth_split_photo_testimonial;
 mod auth_tabs_card;
@@ -26,6 +27,7 @@ pub(super) fn blocks() -> Vec<Block> {
         auth_dropdown_panel::BLOCK,
         auth_oauth_consent::BLOCK,
         auth_otp_verify::BLOCK,
+        auth_passkey_sign_in::BLOCK,
         auth_split_accent_panel::BLOCK,
         auth_split_photo_testimonial::BLOCK,
         auth_tabs_card::BLOCK,
