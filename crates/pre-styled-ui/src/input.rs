@@ -124,6 +124,9 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // headless パーツであり、本モジュールは薄い再エクスポートのみを担う
 // （二重実装を作らない）。
 pub use fandhe_frontend_headless_ui::field::{error_text, FieldIds, FieldProps};
+// 型付き autocomplete（#3815/#3816/#3817）。`input_with_autocomplete` の公開シグネチャに
+// 現れる型を pre-styled-ui のパスだけで届かせる（#685 契約）。
+pub use fandhe_frontend_headless_ui::autocomplete::{AutocompleteField, AutocompleteToken};
 
 /// この styled Input が扱う slot（[`crate::recipe::SlotRecipe::new`] の
 /// `slots` 引数、モジュール rustdoc「`field` scope を共有する理由」参照）。
@@ -447,7 +450,56 @@ pub fn input<'a>(
     field: &FieldProps<'_>,
     extra_attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
-    let recipe = recipe();
+    let class = variant_class(props);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(extra_attrs));
+    fandhe_frontend_headless_ui::field::input(field, merged)
+}
+
+/// styled `input` パーツを型付き `autocomplete` 付きで組み立てる（イシュー #3817）。
+///
+/// [`input`] と同じ variant クラス合成（呼び出し側の `class` は除去）を行い、
+/// アクセシビリティ配線と `autocomplete` 出力は
+/// [`fandhe_frontend_headless_ui::field::input_with_autocomplete`]（#3816）へ委譲する。
+/// `autocomplete` 値は [`AutocompleteToken`] の静的リテラルのみで、`extra_attrs`
+/// 内の `autocomplete` は headless 側で除去される（任意文字列の経路はない）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::input::{
+///     self, AutocompleteField, AutocompleteToken, FieldIds, FieldProps, InputProps,
+/// };
+///
+/// let field = FieldProps {
+///     id: "user",
+///     ids: FieldIds::default(),
+///     disabled: false,
+///     invalid: false,
+///     required: false,
+///     readonly: false,
+///     has_helper_text: false,
+/// };
+/// let token = AutocompleteToken::new(AutocompleteField::Username).with_webauthn();
+/// let node = input::input_with_autocomplete(&InputProps::default(), &field, token, vec![]);
+/// assert!(render(&node).contains(r#"autocomplete="username webauthn""#));
+/// ```
+#[must_use]
+pub fn input_with_autocomplete<'a>(
+    props: &InputProps,
+    field: &FieldProps<'_>,
+    autocomplete: AutocompleteToken,
+    extra_attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let class = variant_class(props);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(extra_attrs));
+    fandhe_frontend_headless_ui::field::input_with_autocomplete(field, autocomplete, merged)
+}
+
+/// [`input`] / [`input_with_autocomplete`] 共通の variant クラス文字列を作る。
+fn variant_class(props: &InputProps) -> String {
     let mut selection: Vec<(&str, &str)> = vec![
         ("variant", props.variant.value()),
         ("size", props.size.value()),
@@ -455,10 +507,7 @@ pub fn input<'a>(
     if let Some(shape) = props.shape {
         selection.push(("shape", shape.value()));
     }
-    let class = recipe.variant_classes(&selection);
-    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(extra_attrs));
-    fandhe_frontend_headless_ui::field::input(field, merged)
+    recipe().variant_classes(&selection)
 }
 
 #[cfg(test)]

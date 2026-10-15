@@ -4229,7 +4229,8 @@ name = "fandhe-frontend-pre-styled-ui"
 # そのまま採用せずさらに +1 して 0.241.0 とする（`.claude/rules/coding-rust.md`
 # #638 条項の同衝突運用）。
 # イシュー #3816: headless-ui 0.70.0（0.x 破壊的変更）への追随。headless-ui を再エクスポートするためマイナーバンプ。
-version = "0.242.0"
+# イシュー #3817: 型付き autocomplete（input_with_autocomplete / AutocompleteToken）の再エクスポート追加（追加のみ）。
+version = "0.242.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
