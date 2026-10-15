@@ -96,7 +96,7 @@ pub const GUIDES: &[IndexCard] = &[
     IndexCard {
         path: "/guides/ssr-embedding/",
         title: "SSR 組み込みガイド",
-        description: "既存サーバーのハンドラから SSR で HTML を返す組み込み方法（執筆中）。",
+        description: "既存サーバーのハンドラから SSR で HTML を返す組み込み方法。",
     },
     IndexCard {
         path: "/guides/view-transitions/",

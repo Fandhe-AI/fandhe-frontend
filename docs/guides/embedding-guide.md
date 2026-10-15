@@ -169,6 +169,8 @@ WASM モジュールのビルド手順の正式な確定はクレート実装（
 サーバーのルーティングハンドラか）だけです。これが REQ-7 の「フレームワークを
 乗り換えたくない」というユーザーストーリーに対する具体的な回答です。
 
+`fandhe-frontend-server` を使わず、既存サーバー（fandhe-backend 等）のハンドラから SSR で HTML を返す場合は、[SSR 組み込みガイド](./ssr-embedding.md) を参照してください。
+
 ## 5. セキュリティ不変条件
 
 最小埋め込み構成であっても、既定エスケープ（REQ-1）はフルスタック構成と同じ強度で
@@ -224,7 +226,7 @@ REQ-7 の受け入れ基準にあるとおり、v1 の共通コアはパスマ�
 ## 8. スコープ外（本書では扱わない事項）
 
 - `mount_csr` / `hydrate` の実装（TASK-6.2b・#48）
-- `fandhe-frontend-server` の SSR/SSG エントリ（TASK-6.1c・#44）
+- `fandhe-frontend-server` の SSR/SSG エントリ（TASK-6.1c・#44）。server クレート自体のエントリは本書の対象外ですが、既存サーバーのハンドラから `Document` で SSR する方法は [SSR 組み込みガイド](./ssr-embedding.md) で扱います
 - 分岐なしの静的解析・テストによる機械検証（TASK-7.3）
 - View Transitions API の `<meta>` タグ・薄いラッパー（TASK-8.1、`docs/spec/04-requirements.md` REQ-8）
 
