@@ -566,3 +566,78 @@ fn label_for_and_control_id_pair_across_all_three_controls() {
     assert!(render(&textarea(&props, false, vec![], vec![])).contains(r#"id="f-control""#));
     assert!(render(&select(&props, vec![], vec![])).contains(r#"id="f-control""#));
 }
+
+// --- 型付き autocomplete（イシュー #3816） ---
+
+mod typed_autocomplete {
+    use super::*;
+    use fandhe_frontend_headless_ui::field::input_with_autocomplete;
+    use fandhe_frontend_headless_ui::{AutocompleteField, AutocompleteToken};
+
+    fn count_ci(html: &str, needle: &str) -> usize {
+        html.to_ascii_lowercase().matches(needle).count()
+    }
+
+    #[test]
+    fn username_webauthn_and_single_tokens_are_emitted() {
+        let props = base_props("f");
+        let t = AutocompleteToken::new(AutocompleteField::Username).with_webauthn();
+        let html = render(&input_with_autocomplete(&props, t, vec![]));
+        assert!(html.contains(r#"autocomplete="username webauthn""#));
+        let t = AutocompleteToken::new(AutocompleteField::Email);
+        let html = render(&input_with_autocomplete(&props, t, vec![]));
+        assert!(html.contains(r#"autocomplete="email""#));
+    }
+
+    #[test]
+    fn typed_value_wins_and_attribute_is_unique() {
+        let props = base_props("f");
+        let t = AutocompleteToken::new(AutocompleteField::Email);
+        let html = render(&input_with_autocomplete(
+            &props,
+            t,
+            vec![
+                ("autocomplete", "off"),
+                ("AUTOCOMPLETE", "on"),
+                ("AutoComplete", "\"><script>x</script>"),
+            ],
+        ));
+        assert_eq!(count_ci(&html, "autocomplete="), 1);
+        assert!(html.contains(r#"autocomplete="email""#));
+        assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn output_equals_input_plus_one_autocomplete_attr() {
+        let mut props = base_props("f");
+        props.invalid = true;
+        props.has_helper_text = true;
+        let extra = vec![("name", "u"), ("value", "v")];
+        let base = render(&input(&props, extra.clone()));
+        let t = AutocompleteToken::new(AutocompleteField::Username);
+        let typed = render(&input_with_autocomplete(&props, t, extra));
+        assert_eq!(count_ci(&base, "autocomplete="), 0);
+        let stripped = typed.replace(r#" autocomplete="username""#, "");
+        assert_eq!(stripped, base);
+    }
+
+    #[test]
+    fn raw_autocomplete_via_input_is_preserved() {
+        let props = base_props("f");
+        let html = render(&input(&props, vec![("autocomplete", "email")]));
+        assert!(html.contains(r#"autocomplete="email""#));
+    }
+
+    #[test]
+    fn xss_in_id_and_other_attrs_is_escaped() {
+        let props = base_props("x\" onmouseover=\"alert(1)");
+        let t = AutocompleteToken::new(AutocompleteField::Email);
+        let html = render(&input_with_autocomplete(
+            &props,
+            t,
+            vec![("value", "<script>alert(2)</script>")],
+        ));
+        assert!(!html.contains("<script>alert"));
+        assert!(!html.contains("onmouseover=\"alert"));
+    }
+}
