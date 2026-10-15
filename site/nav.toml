@@ -2285,6 +2285,11 @@ source = "site/blocks/auth-otp-verify.md"
 path = "/blocks/auth-otp-verify/"
 
 [[section.group.page]]
+title = "auth-passkey-sign-in"
+source = "site/blocks/auth-passkey-sign-in.md"
+path = "/blocks/auth-passkey-sign-in/"
+
+[[section.group.page]]
 title = "auth-split-accent-panel"
 source = "site/blocks/auth-split-accent-panel.md"
 path = "/blocks/auth-split-accent-panel/"
