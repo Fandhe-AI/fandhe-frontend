@@ -1699,6 +1699,12 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             description: "同一の aria-describedby/aria-invalid 合成則に従う 3 種のコントロールパーツ（field.rs:311-374）。",
         },
         ArgRow {
+            name: "input_with_autocomplete(props, token, extra_attrs)",
+            kind: "&FieldProps, AutocompleteToken, ..",
+            default: "",
+            description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken`（`username webauthn`・`email` 等）で指定する（イシュー #3816、field.rs の input_with_autocomplete）。任意文字列は受け付けず、`extra_attrs` の `autocomplete` は大文字小文字を区別せず除去される。",
+        },
+        ArgRow {
             name: "group(attrs, children) / separator(attrs, content)",
             kind: "Vec<(&str, &str)>, ..",
             default: "",

@@ -533,6 +533,11 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    イシュー #3815 で `autocomplete` モジュールの固定語彙型 `AutocompleteToken`
    （field 名 + 任意の `webauthn`）と `input_with_autocomplete` を追加した
    （`current-password webauthn` 等。任意の `&str` を受ける経路は持たない）。
+   イシュー #3816 で `field::input_with_autocomplete(props, token, extra_attrs)` と
+   `AutocompleteField::Email`（`#[non_exhaustive]` 化）を追加した。`extra_attrs` の
+   `autocomplete` は大文字小文字を区別せず除去し型付きの値を優先する。既存の
+   `field::input` は不変で生文字列経路も維持する。`password_input` では password 系
+   以外の field 指定を `props.autocomplete` へフォールバックする。
 9. イシュー #1615（ark-ui 公式 Data Attributes / Keyboard Support 表・Radix
    `one-time-password-field` 参照突合）で `pin_input` へ `PinInputProps`
    （disabled/readonly/invalid/required）を新設し、`root`/`label`/`input`
