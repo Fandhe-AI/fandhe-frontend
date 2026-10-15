@@ -55,7 +55,7 @@ members = ["."]
 # 側も 0.6.0 へ追随する。イシュー #1388（panic 整形機構の縮減、内部実装
 # のみ・公開 API 不変）で wasm-client 0.6.0 → 0.6.1 へパッチバンプされた
 # ため、本テンプレート側も追随する。
-fandhe-frontend-wasm-client = "0.6.1"
+fandhe-frontend-wasm-client = "0.6.2"
 
 [lib]
 crate-type = ["cdylib"]
