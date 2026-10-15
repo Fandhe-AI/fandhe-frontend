@@ -39,7 +39,7 @@ name = "fandhe-frontend-dist-server"
 # を追加した（gzip +2,757 B の実測で警告しきい値内）。配布 WASM の機能が増える
 # 純追加で公開 API は無変更のため patch バンプとし、0.3.4 から 0.3.5 とする
 # （`.claude/rules/coding-rust.md` #638 条項）。
-version = "0.3.5"
+version = "0.3.6"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"
@@ -83,8 +83,8 @@ categories = ["web-programming"]
 #   packages: 23（上限 60）/ max depth: 6（上限 6）→ result: PASS
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
-fandhe-frontend-app = { path = "../app", version = "0.2.6" }
-fandhe-frontend-server = { path = "../server", version = "0.2.6" }
+fandhe-frontend-app = { path = "../app", version = "0.2.7" }
+fandhe-frontend-server = { path = "../server", version = "0.2.7" }
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio", "server-graceful"] }
 http-body-util = { version = "0.1", default-features = false }

@@ -21,7 +21,8 @@
 //! 「HTML 文字列の直接組み立て禁止」）。[`page_shell`] が前置する
 //! `<!DOCTYPE html>` のみ、ユーザー入力を一切含まない固定リテラルとして
 //! 文字列結合する（`fandhe_frontend_core::render` 済みの既定エスケープ済み HTML の前に
-//! 付与するのみであり、新たな迂回経路ではない）。
+//! 付与するのみであり、新たな迂回経路ではない）。[`Document::render`] も同様に
+//! `<!DOCTYPE html>\n` 固定リテラル以外は文字列結合しない。
 //!
 //! # スコープ外
 //!
@@ -44,8 +45,11 @@
 use fandhe_frontend_core::{a, div, el, h1, li, main_tag, p, text, ul, Node};
 use std::convert::Infallible;
 
+pub mod document;
 pub mod router;
 pub mod routes;
+
+pub use document::Document;
 
 /// ハイドレーション後にクライアント側の `click` イベントで参照される
 /// `id` 属性値。`fandhe-frontend-wasm-client`（TASK-6.2 系）がこの定数で DOM 要素を
