@@ -47,4 +47,6 @@ ErrorText に単一のテキストではなく `<ul>`（各エラーを `<li>` �
 `<ul>`/`<li>` の組み立てや重複排除自体はこの部品の責務ではなく、呼び出し側が
 `fandhe_frontend_core::el` / `text` で構築して渡してください。
 
+コントロールの型付き `autocomplete`（`username webauthn` など）は [Input](./input.md) の `input::input_with_autocomplete` で指定します。`AutocompleteToken` / `AutocompleteField` は `input` mod から再エクスポートされます。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

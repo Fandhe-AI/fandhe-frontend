@@ -19,6 +19,14 @@ ark-ui/zag は VisibilityTrigger へ `aria-expanded`（表示中で `true`）+ `
 
 ポインタ・キーボード操作の実際の DOM 配線（`fandhe-frontend-wasm-full`）は本部品のスコープ外です。本部品は SSR 静的マークアップと dispatch 契約のみを提供します。
 
+**型付き autocomplete と passkey**
+
+passkey のフォーム自動入力（WebAuthn の conditional mediation）を使うログインフォームでは、パスワード欄の `autocomplete` を `current-password webauthn` にします。`PasswordAutocomplete::CurrentPassword.with_webauthn()` で作る `AutocompleteToken` を `input_with_autocomplete` へ渡します。ユーザー名欄は [Field](./field.md) の `input_with_autocomplete` で `username webauthn` にします。`new-password webauthn` は文法上は有効ですが、通常は使いません。
+
+`input_with_autocomplete` の中では `props.autocomplete` は無視され、引数のトークンが優先されます。password 系以外の field（`Username` / `Email`）を渡した場合だけ `props.autocomplete` に戻ります（fail-safe）。`attrs` に `autocomplete` を渡しても除去されます。
+
+`AutocompleteToken` は固定語彙で、出力は組み合わせごとの静的リテラルだけです。任意の文字列を受け付ける公開コンストラクタはありません。属性値に意図しない文字列が混ざる経路を型で閉じるためで、`webauthn` だけを置く、`on` / `off` と併用する、先頭に置くといった無効な並びも表現できません。`navigator.credentials.get` の呼び出しなど WebAuthn 本体の処理はアプリ側の責務で、本部品は属性を出力するだけです。
+
 スタイル済みの表示例は [Password Input](../themes/password-input.md) を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

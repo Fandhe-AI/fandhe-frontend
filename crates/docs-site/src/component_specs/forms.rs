@@ -70,6 +70,9 @@ use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperP
 use fandhe_frontend_pre_styled_ui::input::{self, InputProps};
 use fandhe_frontend_pre_styled_ui::kbd;
 use fandhe_frontend_pre_styled_ui::native_select;
+use fandhe_frontend_pre_styled_ui::password_input::{
+    self, PasswordAutocomplete, PasswordInputProps,
+};
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::radio_group::RadioGroupProps;
@@ -943,6 +946,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         "`data-invalid`/`data-disabled`/`data-required`/`data-readonly` はいずれも headless-ui `field::root` が出力する状態を CSS セレクタとして参照するだけで、値の妥当性判定・送信処理といったバリデーション自体は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
         "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
         "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスはコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
+        "コントロールの型付き `autocomplete`（`username webauthn` など、passkey ログインのユーザー名欄向け）は Input 部品の `input::input_with_autocomplete`（`/themes/input/`）が担う。`AutocompleteToken` / `AutocompleteField` は `input` mod から再エクスポートされ、任意の文字列は受け付けない。",
         "`group` は複数 `Field`（`root`）を縦積みする外側コンテナ、`separator` は線のみ／テキスト付きの区切り線（`separator-line`/`separator-content` の 2 内部パーツから成る）、`content`/`title` は `<label for>` を結び付けられない場面（複数コントロールの見出し等）で `label` の代替として使う見出し + 補助テキストの列（イシュー #2185、shadcn/ui `FieldGroup`/`FieldSeparator`/`FieldContent`/`FieldTitle` 相当）。",
         "`root_with_label_placement` で `orientation` とは独立なラベル配置 variant（`FieldLabelPlacement`: `Outside`（既定）/`Inset`/`Overlap`）を選べる（イシュー #3134）。`Inset` は `root` 自身に枠線・背景を持たせ内側上部にラベルを置き、`Overlap` はラベルを枠線の上へ重ねる。どちらも枠線を `root` が描くため、invalid の枠線色と `:focus-within` のフォーカスリングを `root` 側で表示し、`input` 自身の `outline` は打ち消す（disabled の半透明化は各パーツ側のみ）（モジュール doc「状態表示の対応表」節参照）。いずれも `orientation = Vertical` での使用のみを前提とする。",
     ],
@@ -997,6 +1001,11 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         },
     ],
     examples: &[
+        ExampleEntry {
+            title: "Username + passkey（username webauthn）",
+            description: "`input::input_with_autocomplete` に `AutocompleteToken::new(AutocompleteField::Username).with_webauthn()` を渡し、`autocomplete=\"username webauthn\"` を出力する合成例です。",
+            render: ex_field_username_webauthn,
+        },
         ExampleEntry {
             title: "Field group + separator",
             description: "複数の `Field` を `group` で縦積みし、線のみの `separator` とテキスト付き `separator`（\"Or continue with\"）を挟む合成例です（イシュー #2185、`docs/design/reference-screenshots/shadcn-field-1.png` の Payment Method フォーム相当）。",
@@ -1070,6 +1079,78 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
 /// #2185）。`docs/design/reference-screenshots/shadcn-field-1.png`
 /// （Payment Method フォーム: 複数 field の縦積み・区切り線）の合成を
 /// 再現する。バリデーション・送信処理は実装しない（§3.25 規則 1）。
+fn ex_field_username_webauthn() -> Node {
+    let f = fandhe_frontend_pre_styled_ui::input::FieldProps {
+        id: "ex-themes-field-username-webauthn",
+        ids: fandhe_frontend_pre_styled_ui::input::FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let token = input::AutocompleteToken::new(input::AutocompleteField::Username).with_webauthn();
+    field::root(
+        &FieldRootProps {
+            orientation: FieldOrientation::Vertical,
+        },
+        &f,
+        vec![],
+        vec![
+            field::label(&f, vec![], vec![text("Username")]),
+            input::input_with_autocomplete(
+                &InputProps::default(),
+                &f,
+                token,
+                vec![("type", "text"), ("name", "username")],
+            ),
+        ],
+    )
+}
+
+/// [`PASSWORD_INPUT`] の Examples 節「Passkey」レンダラ。styled `root` の中で
+/// `input_with_autocomplete` に `current-password webauthn` の型付きトークンを渡す。
+fn ex_password_input_webauthn() -> Node {
+    let props = PasswordInputProps {
+        id: "ex-themes-pw-webauthn",
+        disabled: false,
+        readonly: false,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let token = PasswordAutocomplete::CurrentPassword.with_webauthn();
+    password_input::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        &props,
+        vec![],
+        vec![
+            password_input::label(&props, vec![], vec![text("Password")]),
+            password_input::control(
+                false,
+                &props,
+                vec![],
+                vec![
+                    password_input::input_with_autocomplete(false, &props, token, vec![]),
+                    password_input::visibility_trigger(
+                        false,
+                        &props,
+                        vec![("aria-label", "Show password")],
+                        vec![password_input::indicator(
+                            false,
+                            &props,
+                            vec![],
+                            vec![text("👁")],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
 fn ex_field_group_and_separator() -> Node {
     let card_props = FieldProps {
         id: "ex-field-card-number",
@@ -1599,6 +1680,12 @@ const INPUT: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "`<input>` へ合成する追加属性（`type` 等）。",
         },
+        ArgRow {
+            name: "input_with_autocomplete(props, field, autocomplete, extra_attrs)",
+            kind: "&InputProps, &FieldProps<'_>, AutocompleteToken, ..",
+            default: "",
+            description: "`input` と同じ variant クラスの合成で、`autocomplete` を固定語彙の `AutocompleteToken`（`username webauthn` 等。`AutocompleteToken` / `AutocompleteField` は `input` mod から再エクスポート）で指定する。出力は静的リテラルのみで任意文字列は受け付けない。`extra_attrs` の `autocomplete` / `class` は除去される。",
+        },
     ],
     examples: &[
         ExampleEntry {
@@ -1911,6 +1998,7 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを付与し、headless-ui の `password_input::root` へ委譲する。",
         "`visible` フラグで表示/非表示を制御し、`PasswordInputProps` で `autocomplete`（`PasswordAutocomplete`）等を渡す。",
+        "passkey 向けの `current-password webauthn` は、`password_input::input_with_autocomplete`（headless-ui から再エクスポート）へ `PasswordAutocomplete::CurrentPassword.with_webauthn()` の `AutocompleteToken` を渡して出力する。`AutocompleteToken` / `AutocompleteField` も `password_input` mod から使え、任意の文字列は受け付けない。",
     ],
     arguments: &[
         ArgRow {
@@ -1935,7 +2023,13 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
             name: "props",
             kind: "&PasswordInputProps<'_>",
             default: "",
-            description: "`id`・`disabled`・`invalid`・`required`・`autocomplete` を束ねる構造体。",
+            description: "`id`・`disabled`・`readonly`・`invalid`・`required`・`autocomplete`（`webauthn` なし）を束ねる構造体。",
+        },
+        ArgRow {
+            name: "input_with_autocomplete(visible, props, autocomplete, attrs)",
+            kind: "bool, &PasswordInputProps<'_>, AutocompleteToken, ..",
+            default: "",
+            description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken` で指定する。引数のトークンが `props.autocomplete` より優先され、password 系以外（`Username` / `Email`）の field を渡すと `props.autocomplete` に戻る（fail-safe）。`attrs` の `autocomplete` は除去される。出力は静的リテラルのみ。",
         },
         ArgRow {
             name: "attrs",
@@ -1950,7 +2044,11 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード（通常 input/visibility_trigger を含む）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Passkey（current-password webauthn）",
+        description: "`password_input::input_with_autocomplete` に `PasswordAutocomplete::CurrentPassword.with_webauthn()` を渡し、`autocomplete=\"current-password webauthn\"` を出力する例です。",
+        render: ex_password_input_webauthn,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
