@@ -39,6 +39,11 @@ source = "docs/guides/embedding-guide.md"
 path = "/guides/embedding-guide/"
 
 [[section.page]]
+title = "SSR 組み込みガイド"
+source = "docs/guides/ssr-embedding.md"
+path = "/guides/ssr-embedding/"
+
+[[section.page]]
 title = "View Transitions"
 source = "docs/guides/view-transitions.md"
 path = "/guides/view-transitions/"
