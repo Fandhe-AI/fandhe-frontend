@@ -90,21 +90,29 @@ fi
 # lock を使う通常経路では従来どおり lock の内容をそのまま尊重する）。
 regenerated_lock=0
 if [ ! -f "${wasm_lock}" ]; then
-  cargo generate-lockfile --manifest-path "${wasm_manifest}"
-  regenerated_lock=1
-fi
-
-if [ "${regenerated_lock}" -eq 1 ]; then
   installed_cli_version="$(wasm-bindgen --version | awk '{print $2}')"
   if [ -z "${installed_cli_version}" ]; then
     echo "error: could not determine the installed wasm-bindgen-cli version from \`wasm-bindgen --version\`." >&2
     exit 1
   fi
-  if ! cargo update --manifest-path "${wasm_manifest}" -p wasm-bindgen --precise "${installed_cli_version}"; then
-    echo "error: failed to pin the freshly generated ${wasm_lock} to wasm-bindgen ${installed_cli_version} (the installed wasm-bindgen-cli version)." >&2
-    echo "fix: verify wasm-bindgen ${installed_cli_version} is published on crates.io and satisfies the \"wasm-bindgen = \\\"0.2\\\"\" requirement in ${wasm_manifest}." >&2
+  # `cargo update -p wasm-bindgen --precise` は他の固定済みクレートを動かさない
+  # ため、web-sys / js-sys の最新版が新しい wasm-bindgen（`=0.2.N+1`）を要求
+  # していると解決に失敗する（web-sys 0.3.106 が wasm-bindgen =0.2.129 を要求
+  # した事例）。そこで一時的に `wasm-bindgen = "=<CLI 版>"` を manifest へ
+  # 注入してから `cargo generate-lockfile` を行い、リゾルバのバックトラックで
+  # web-sys / js-sys / wasm-bindgen-futures を CLI と整合する版へ解決させる。
+  # manifest は成否に関わらず直後に元へ戻す（lock のみが成果物）。
+  manifest_backup="${wasm_manifest}.build-sh-orig"
+  cp "${wasm_manifest}" "${manifest_backup}"
+  sed -i "s/^\[dependencies\]\$/[dependencies]\nwasm-bindgen = \"=${installed_cli_version}\"/" "${wasm_manifest}"
+  if ! cargo generate-lockfile --manifest-path "${wasm_manifest}"; then
+    mv -f "${manifest_backup}" "${wasm_manifest}"
+    echo "error: failed to generate ${wasm_lock} pinned to wasm-bindgen ${installed_cli_version} (the installed wasm-bindgen-cli version)." >&2
+    echo "fix: verify wasm-bindgen ${installed_cli_version} is published on crates.io and compatible with the dependencies in ${wasm_manifest}." >&2
     exit 1
   fi
+  mv -f "${manifest_backup}" "${wasm_manifest}"
+  regenerated_lock=1
 fi
 
 expected_version="$(awk '
