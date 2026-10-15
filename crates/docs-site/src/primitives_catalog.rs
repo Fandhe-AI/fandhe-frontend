@@ -1087,9 +1087,9 @@ mod tests {
         assert_eq!(titles.len(), PRIMITIVES.len(), "title に重複がある");
     }
 
-    /// 基盤リストが 9 件・重複なしであること。
+    /// 基盤リストが 10 件・重複なしであること。
     #[test]
-    fn foundation_list_has_nine_unique_modules() {
+    fn foundation_list_has_ten_unique_modules() {
         let set: BTreeSet<&str> = FOUNDATION_MODULES.iter().copied().collect();
         assert_eq!(FOUNDATION_MODULES.len(), 10);
         assert_eq!(set.len(), 10, "FOUNDATION_MODULES に重複がある");
