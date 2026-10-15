@@ -410,9 +410,9 @@ pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &s
 /// - `autocomplete` へ任意の `&str` を渡す公開 API は存在せず、出力は
 ///   [`AutocompleteToken::as_str`] の静的リテラルのみ（A05）。`attrs` 経由の
 ///   `autocomplete` は `INPUT_RESERVED` により除去される。
-/// - `type=password`/`type=text` の input に `username` は不適切なため、
-///   [`AutocompleteField::Username`] 指定時は `props.autocomplete` へ
-///   フォールバックする（fail-safe）。
+/// - `type=password`/`type=text` の input に `username`/`email` は不適切なため、
+///   password 系（`CurrentPassword`/`NewPassword`）以外の field 指定時は
+///   `props.autocomplete` へフォールバックする（fail-safe、イシュー #3816）。
 /// - `new-password webauthn` は仕様上有効なため許容するが、通常は
 ///   `current-password webauthn` を使う。
 #[must_use]
@@ -422,10 +422,13 @@ pub fn input_with_autocomplete(
     autocomplete: AutocompleteToken,
     attrs: Vec<(&str, &str)>,
 ) -> Node {
-    let autocomplete = if autocomplete.field() == AutocompleteField::Username {
-        props.autocomplete.into()
-    } else {
+    let autocomplete = if matches!(
+        autocomplete.field(),
+        AutocompleteField::CurrentPassword | AutocompleteField::NewPassword
+    ) {
         autocomplete
+    } else {
+        props.autocomplete.into()
     };
     let attrs = drop_reserved(attrs, INPUT_RESERVED);
     let input_id = control_input_id(props.id);
@@ -860,6 +863,15 @@ mod tests {
         props.autocomplete = PasswordAutocomplete::NewPassword;
         let html = render(&input(false, &props, vec![]));
         assert!(html.contains(r#"autocomplete="new-password""#));
+    }
+
+    #[test]
+    fn input_with_autocomplete_email_falls_back_to_props() {
+        let props = default_props("pw");
+        let t = AutocompleteToken::new(AutocompleteField::Email);
+        let html = render(&input_with_autocomplete(false, &props, t, vec![]));
+        assert!(html.contains(r#"autocomplete="current-password""#));
+        assert!(!html.contains("email"));
     }
 
     #[test]

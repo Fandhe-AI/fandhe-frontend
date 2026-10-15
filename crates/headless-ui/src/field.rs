@@ -126,6 +126,7 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_describedby, aria_hidden, aria_invalid, aria_orientation};
+use crate::autocomplete::AutocompleteToken;
 use crate::data_attrs::Orientation;
 use fandhe_frontend_core::Node;
 
@@ -376,6 +377,35 @@ pub fn input<'a>(props: &FieldProps<'_>, extra_attrs: Vec<(&'a str, &'a str)>) -
     let control_id = props.control_id();
     let described_by = describedby_value(props);
     let mut attrs = props.control_attrs(ControlKind::Input, &control_id, extra_attrs);
+    if let Some(ref value) = described_by {
+        attrs.push(aria_describedby(value.as_str()));
+    }
+    ANATOMY.part("input", "input", attrs, vec![])
+}
+
+/// [`input`] に固定語彙の [`AutocompleteToken`] で `autocomplete` を付ける版
+/// （`username webauthn` / `email` 等、イシュー #3816）。
+///
+/// - `extra_attrs` 内の `autocomplete`（大文字小文字を区別しない）は除去され、
+///   型付きの値が優先される。`autocomplete` 属性は常に 1 個だけ出力される。
+/// - 出力値は [`AutocompleteToken::as_str`] の静的リテラルのみ。任意 `&str` を
+///   `autocomplete` へ渡す経路はない（A05）。
+/// - 既存の [`input`] は不変で、`extra_attrs` の生文字列 `autocomplete` も従来どおり出力する。
+/// - pre-styled-ui 等の上層から呼ばれ、出力は既定エスケープ（REQ-1）を経由する。
+#[must_use]
+pub fn input_with_autocomplete<'a>(
+    props: &FieldProps<'_>,
+    autocomplete: AutocompleteToken,
+    extra_attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let control_id = props.control_id();
+    let described_by = describedby_value(props);
+    let extra_attrs: Vec<(&'a str, &'a str)> = extra_attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("autocomplete"))
+        .collect();
+    let mut attrs = props.control_attrs(ControlKind::Input, &control_id, extra_attrs);
+    attrs.push(("autocomplete", autocomplete.as_str()));
     if let Some(ref value) = described_by {
         attrs.push(aria_describedby(value.as_str()));
     }

@@ -523,7 +523,7 @@
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
 //! - [`autocomplete`](mod@autocomplete): `autocomplete` 属性値の固定語彙型
-//!   [`autocomplete::AutocompleteToken`]（field 名 + 任意の `webauthn` トークン、
+//!   [`autocomplete::AutocompleteToken`]（field 名 + 任意の `webauthn` トークン。`field::input_with_autocomplete` でも利用、
 //!   任意文字列は受け付けない。#3815）。
 //! - [`password_input`](mod@password_input): Root / Label / Control / Input /
 //!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替

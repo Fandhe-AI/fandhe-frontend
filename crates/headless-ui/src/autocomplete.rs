@@ -17,16 +17,21 @@
 //!
 //! # 呼び出し文脈
 //!
-//! [`crate::password_input::input_with_autocomplete`] が受け取り、
-//! `autocomplete` 属性へ出力する。後続の username 入力等も同じ型を再利用する想定。
+//! [`crate::password_input::input_with_autocomplete`] と
+//! [`crate::field::input_with_autocomplete`]（イシュー #3816）が受け取り、
+//! `autocomplete` 属性へ出力する。`AutocompleteField` は `#[non_exhaustive]`
+//! で、今後の field 名追加は非破壊。`email webauthn` も仕様上有効なため許容する。
 //! `new-password webauthn` は仕様上は有効なため許容するが、通常は
 //! `current-password` / `username` と併用する。
 
 /// `autocomplete` の field 名（固定語彙）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AutocompleteField {
     /// `username`。
     Username,
+    /// `email`（Contact カテゴリ。`email webauthn` も文法上は有効だが通常は使わない、イシュー #3816）。
+    Email,
     /// `current-password`。
     CurrentPassword,
     /// `new-password`。
@@ -77,6 +82,8 @@ impl AutocompleteToken {
         match (self.field, self.webauthn) {
             (AutocompleteField::Username, false) => "username",
             (AutocompleteField::Username, true) => "username webauthn",
+            (AutocompleteField::Email, false) => "email",
+            (AutocompleteField::Email, true) => "email webauthn",
             (AutocompleteField::CurrentPassword, false) => "current-password",
             (AutocompleteField::CurrentPassword, true) => "current-password webauthn",
             (AutocompleteField::NewPassword, false) => "new-password",
@@ -89,8 +96,9 @@ impl AutocompleteToken {
 mod tests {
     use super::*;
 
-    const FIELDS: [AutocompleteField; 3] = [
+    const FIELDS: [AutocompleteField; 4] = [
         AutocompleteField::Username,
+        AutocompleteField::Email,
         AutocompleteField::CurrentPassword,
         AutocompleteField::NewPassword,
     ];
@@ -100,6 +108,8 @@ mod tests {
         let expected = [
             "username",
             "username webauthn",
+            "email",
+            "email webauthn",
             "current-password",
             "current-password webauthn",
             "new-password",
