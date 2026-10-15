@@ -103,15 +103,38 @@ if [ ! -f "${wasm_lock}" ]; then
   # web-sys / js-sys / wasm-bindgen-futures を CLI と整合する版へ解決させる。
   # manifest は成否に関わらず直後に元へ戻す（lock のみが成果物）。
   manifest_backup="${wasm_manifest}.build-sh-orig"
-  cp "${wasm_manifest}" "${manifest_backup}"
-  sed -i "s/^\[dependencies\]\$/[dependencies]\nwasm-bindgen = \"=${installed_cli_version}\"/" "${wasm_manifest}"
-  if ! cargo generate-lockfile --manifest-path "${wasm_manifest}"; then
+  # 前回の実行が中断されバックアップが残っている場合、それが元の manifest
+  # なので上書きせず先に復元する（変更済み manifest で潰すと元の状態を失い、
+  # 依存も重複追加される）。
+  if [ -f "${manifest_backup}" ]; then
     mv -f "${manifest_backup}" "${wasm_manifest}"
+  fi
+  cp "${wasm_manifest}" "${manifest_backup}"
+  # 中断（EXIT / INT / TERM）でも manifest を必ず元へ戻す。
+  restore_manifest() {
+    if [ -f "${manifest_backup}" ]; then
+      mv -f "${manifest_backup}" "${wasm_manifest}"
+    fi
+  }
+  trap restore_manifest EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  # GNU / BSD sed の差を避けるため awk + 一時ファイルで注入する（`sed -i` と
+  # 改行を含む置換は BSD sed で動かない）。
+  manifest_tmp="${wasm_manifest}.build-sh-tmp"
+  awk -v ver="${installed_cli_version}" '
+    { print }
+    $0 == "[dependencies]" { print "wasm-bindgen = \"=" ver "\"" }
+  ' "${manifest_backup}" > "${manifest_tmp}"
+  mv -f "${manifest_tmp}" "${wasm_manifest}"
+  if ! cargo generate-lockfile --manifest-path "${wasm_manifest}"; then
+    restore_manifest
     echo "error: failed to generate ${wasm_lock} pinned to wasm-bindgen ${installed_cli_version} (the installed wasm-bindgen-cli version)." >&2
     echo "fix: verify wasm-bindgen ${installed_cli_version} is published on crates.io and compatible with the dependencies in ${wasm_manifest}." >&2
     exit 1
   fi
-  mv -f "${manifest_backup}" "${wasm_manifest}"
+  restore_manifest
+  trap - EXIT INT TERM
   regenerated_lock=1
 fi
 
