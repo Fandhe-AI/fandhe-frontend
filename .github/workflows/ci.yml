@@ -3113,8 +3113,8 @@ jobs:
         run: |
           set -euo pipefail
           cargo test -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports --locked --test feature_gating_contract 2>&1 | tee /tmp/feature-gating-contract.log
-          if ! grep -qE '^test result: ok\. 4 passed; 0 failed' /tmp/feature-gating-contract.log; then
-            echo "::error::feature_gating_contract tests did not report '4 passed; 0 failed'." >&2
+          if ! grep -qE '^test result: ok\. 5 passed; 0 failed' /tmp/feature-gating-contract.log; then
+            echo "::error::feature_gating_contract tests did not report '5 passed; 0 failed'." >&2
             exit 1
           fi
 

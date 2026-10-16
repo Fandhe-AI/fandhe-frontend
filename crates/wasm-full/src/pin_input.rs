@@ -57,7 +57,9 @@
 //! いずれも `HtmlInputElement::set_value`（ASCII 英数字 1 文字または空文字）に限る。
 //! HTML 文字列は組み立てない（REQ-1）。`fandhe_frontend_interactive::dispatch` は
 //! 「復号できたか」しか返さず状態機械の受理・拒否は分からないため、拒否の検出は
-//! 事前フィルタ（`prefilter_char`）で担う。dispatch 後に要素が差し替わりうるので、
+//! 事前フィルタ（`prefilter_char`）で担い、`data-hydrate-kind` が無く kind を知れない場合は
+//! 再描画後の描画済み value 属性で受理を確かめる（`input_accepted`）。受理を確かめてからだけ次桁へ
+//! フォーカスを移し、`data-action-input` 桁は bubble 側の dispatch 完了後（`setTimeout(0)`）に移す。dispatch 後に要素が差し替わりうるので、
 //! 要素参照は保持せず「何番目の pin-input root か」と `data-index` から引き直す。
 //!
 //! # `docs/policy/intentional-non-adoption.md` §3.25 との整理
@@ -154,6 +156,18 @@ pub fn prefilter_char(kind: KindResolution, c: char) -> Option<char> {
     }
 }
 
+/// 状態機械が入力を受理したかの事後判定。再描画後の桁 input の描画済み `value` 属性が
+/// 入力文字と（大文字小文字を除いて）一致すれば受理とみなす。
+///
+/// `data-hydrate-kind` が無い通常描画（`KindResolution::Unknown`）では事前フィルタが
+/// 状態機械の kind を知れないため、dispatch の戻り値（復号できたか）ではなく、
+/// 状態機械の結果が反映された DOM で受理を確かめる。
+#[must_use]
+pub fn input_accepted(rendered_value: Option<&str>, c: char) -> bool {
+    let mut chars = rendered_value.unwrap_or("").chars();
+    matches!((chars.next(), chars.next()), (Some(r), None) if r.eq_ignore_ascii_case(&c))
+}
+
 /// 次にフォーカスする桁。最終桁では留まる。`count == 0` なら `None`。
 #[must_use]
 pub fn next_focus_index(index: usize, count: usize) -> Option<usize> {
@@ -180,9 +194,9 @@ pub fn input_dispatches(index: usize, c: char) -> [ActionRef; 2] {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        classify_input_value, input_dispatches, next_focus_index, parse_digit_index,
-        prefilter_char, resolve_kind, InputValue, KindResolution, ACTION_FOCUS, INPUT_PART,
-        PIN_INPUT_SCOPE, ROOT_PART,
+        classify_input_value, input_accepted, input_dispatches, next_focus_index,
+        parse_digit_index, prefilter_char, resolve_kind, InputValue, KindResolution, ACTION_FOCUS,
+        INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
     };
     use crate::dom::has_disabled_ancestor;
     use crate::events::{ActionRef, ACTION_INPUT_ATTR};
@@ -364,16 +378,58 @@ mod wiring {
             input.set_value(&normalized.to_string());
         }
         // `data-action-input` がある桁は `events::wire_events` が dispatch を担う。
-        if !target.has_attribute(ACTION_INPUT_ATTR) {
-            let [focus, value] = input_dispatches(index, normalized);
-            call(on_action, focus);
-            if !call(on_action, value) {
-                return;
+        if target.has_attribute(ACTION_INPUT_ATTR) {
+            // bubble 側の dispatch と再描画が済んでから確認・フォーカス移動する
+            // （先に focus() すると focusin の "focus" dispatch で状態機械の focused が
+            // 次桁へ移り、後続の "input" が次桁へ書かれる）。
+            let deferred_root = root.clone();
+            let cb = Closure::once_into_js(move || {
+                finish_input(&deferred_root, ordinal, index, count, normalized);
+            });
+            let scheduled = web_sys::window().is_some_and(|w| {
+                w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 0)
+                    .is_ok()
+            });
+            if !scheduled {
+                // スケジュールできないときは fail-closed（旧値へ戻して終える）。
+                restore_input(root, ordinal, index);
+            }
+            return;
+        }
+        let [focus, value] = input_dispatches(index, normalized);
+        call(on_action, focus);
+        if !call(on_action, value) {
+            restore_input(root, ordinal, index);
+            return;
+        }
+        finish_input(root, ordinal, index, count, normalized);
+    }
+
+    /// 桁 input の DOM 値を描画済み value 属性（無ければ空）へ戻す。
+    fn restore_input(root: &Element, ordinal: u32, index: usize) {
+        if let Some(el) = resolve_input(root, ordinal, index) {
+            let restored = el.default_value();
+            if restored.chars().count() <= 1 {
+                el.set_value(&restored);
+            } else {
+                el.set_value("");
             }
         }
+    }
+
+    /// dispatch と再描画の完了後に、受理を DOM で確かめてから次桁へフォーカスを移す。
+    /// 拒否されていたら旧値へ戻しフォーカスは動かさない。
+    fn finish_input(root: &Element, ordinal: u32, index: usize, count: usize, c: char) {
+        let Some(el) = resolve_input(root, ordinal, index) else {
+            return;
+        };
+        if !input_accepted(el.get_attribute("value").as_deref(), c) {
+            restore_input(root, ordinal, index);
+            return;
+        }
         if let Some(next) = next_focus_index(index, count) {
-            if let Some(el) = resolve_input(root, ordinal, next) {
-                let _ = el.focus();
+            if let Some(n) = resolve_input(root, ordinal, next) {
+                let _ = n.focus();
             }
         }
     }
