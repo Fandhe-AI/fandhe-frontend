@@ -1061,6 +1061,7 @@ pub enum LayoutCss {
 | action-panel-with-well | #2956 | `application/action_panel/action_panel_with_well.rs` |
 | ai-chat-playground | #2960 | `application/ai_chat/ai_chat_playground.rs` |
 | ai-chat-prompt-start | #2961（親 #2951） | `application/ai_chat/ai_chat_prompt_start.rs` |
+| auth-device-approve | #3829（親 #3824） | `application/auth/auth_device_approve.rs` |
 | auth-dropdown-panel | #2962 | `application/auth/auth_dropdown_panel.rs` |
 | auth-oauth-consent | #2963（親 #2951） | `application/auth/auth_oauth_consent.rs` |
 | auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
