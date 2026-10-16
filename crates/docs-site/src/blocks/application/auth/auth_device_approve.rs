@@ -145,7 +145,7 @@ pub fn demo() -> Node {
                             meta,
                         ),
                         pin_input::root(
-                            Size::Lg,
+                            Size::Md,
                             true,
                             false,
                             vec![("data-blocks-auth-device-approve-code", "")],
