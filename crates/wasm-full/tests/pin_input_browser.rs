@@ -467,3 +467,78 @@ fn runtime_hydrate_csr_fallback_wires_pin_input() {
     assert_eq!(runtime.component().pin.digit(0), "5");
     assert_eq!(active_digit(&placeholder).as_deref(), Some("1"));
 }
+/// 入れ子の配線 root を手組みの DOM に 2 重で配線し、各配線の dispatch 回数を数える。
+/// 戻り値は (外側 root, 内側の桁 input, 外側の回数, 内側の回数, 除去ガード)。
+type Counter = std::rc::Rc<std::cell::Cell<usize>>;
+
+fn nested_wired(id: &str) -> (Element, HtmlInputElement, Counter, Counter, RemoveOnDrop) {
+    let outer = create_placeholder(id);
+    let guard = RemoveOnDrop(outer.clone());
+    outer.set_inner_html(
+        r#"<div data-scope="pin-input" data-part="root" id="inner-root"><input data-scope="pin-input" data-part="input" data-index="0"><input data-scope="pin-input" data-part="input" data-index="1"></div>"#,
+    );
+    let inner = outer
+        .query_selector("#inner-root")
+        .unwrap()
+        .expect("inner root must exist");
+    let outer_count: Counter = std::rc::Rc::new(std::cell::Cell::new(0));
+    let inner_count: Counter = std::rc::Rc::new(std::cell::Cell::new(0));
+    let oc = outer_count.clone();
+    let ic = inner_count.clone();
+    fandhe_frontend_wasm_full::pin_input::wire_pin_input_events(
+        inner,
+        move |_| {
+            ic.set(ic.get() + 1);
+            true
+        },
+        |_| None,
+    )
+    .expect("inner wiring must not fail");
+    fandhe_frontend_wasm_full::pin_input::wire_pin_input_events(
+        outer.clone(),
+        move |_| {
+            oc.set(oc.get() + 1);
+            true
+        },
+        |_| None,
+    )
+    .expect("outer wiring must not fail");
+    let target = digit(&outer, 0);
+    (outer, target, outer_count, inner_count, guard)
+}
+
+/// PR #3856 指摘: 入れ子の配線 root で keydown が最内の配線だけに処理される。
+#[wasm_bindgen_test]
+fn nested_roots_handle_keydown_only_in_the_innermost_wiring() {
+    let (_outer, target, outer_count, inner_count, _g) = nested_wired("pin-it-nested-key");
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("Backspace");
+    let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail");
+    target
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+    assert!(inner_count.get() > 0);
+    assert_eq!(outer_count.get(), 0);
+}
+
+/// 指摘: 変換の取り消し（`data` が空）で既存の数字が復元されても dispatch しない。
+/// 確定（`data` あり）は dispatch し、入れ子でも最内だけが処理する。
+#[wasm_bindgen_test]
+fn compositionend_cancel_with_restored_digit_dispatches_nothing() {
+    let (_outer, target, outer_count, inner_count, _g) = nested_wired("pin-it-comp-cancel");
+    target.set_value("5");
+    let cancel = bubbling_event("compositionend");
+    js_sys::Reflect::set(cancel.as_ref(), &"data".into(), &"".into()).unwrap();
+    target.dispatch_event(&cancel).unwrap();
+    assert_eq!(inner_count.get(), 0);
+    assert_eq!(outer_count.get(), 0);
+
+    let confirm = bubbling_event("compositionend");
+    js_sys::Reflect::set(confirm.as_ref(), &"data".into(), &"5".into()).unwrap();
+    target.dispatch_event(&confirm).unwrap();
+    assert!(inner_count.get() > 0);
+    assert_eq!(outer_count.get(), 0);
+}

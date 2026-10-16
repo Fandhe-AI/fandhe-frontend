@@ -113,7 +113,7 @@
 //!
 //! - keydown は `isComposing` または keyCode 229 なら無視する。
 //! - 変換中（`isComposing`）の `input` は無視する。確定は `compositionend` で受け、桁の確定値を
-//!   1 文字なら `input`、2 文字以上なら `paste` として dispatch する（0 文字は変換の取り消しで何もしない）。
+//!   1 文字なら `input`、2 文字以上なら `paste` として dispatch する（`data` が空、または 0 文字は変換の取り消しで何もしない）。
 //! - Safari 系は確定後に非 composing の `input`（`inputType` が `insertFromComposition` 等）を追加で
 //!   発火することがある。`compositionend` を処理した桁を 1 回だけ記録し、同じ桁の直後の
 //!   composition 系 `inputType` の `input` は dispatch しない（二重適用の防止）。記録は次の `input`・
@@ -143,7 +143,8 @@
 //! # 配線の回数・入れ子・dispatch 回数
 //!
 //! - 配線は 1 root につき 1 回。入れ子の配線 root では capture の記録（`PENDING`）が 1 スロットのため、
-//!   内側の配線だけが反映する。
+//!   内側の配線だけが反映する。`keydown` / `paste` / `compositionend` は処理済みイベントの印
+//!   （`CLAIMED`）で最内の配線だけが処理する。
 //! - 1 イベントで `"focus"` と本体アクションの 2 回 dispatch するため、`on_update` も 2 回走る。
 //!
 //! # 複数インスタンス
@@ -576,6 +577,31 @@ mod wiring {
         /// 直近に `compositionend` を処理した桁 input（Safari 系の確定後の追加 `input` を 1 回だけ
         /// 捨てるためのガード。次の `input`・`keydown` で必ず破棄する）。
         static COMPOSED: std::cell::RefCell<Option<Element>> = const { std::cell::RefCell::new(None) };
+        /// 直近に処理した `keydown` / `paste` / `compositionend` イベント。入れ子の配線 root で
+        /// 同一イベントが内側・外側の両ハンドラへ届いても、最初（最内）の 1 回だけ処理するための印。
+        static CLAIMED: std::cell::RefCell<Option<Event>> = const { std::cell::RefCell::new(None) };
+    }
+
+    /// 同一イベントを未処理なら処理済みとして印を付けて `true`、処理済みなら `false`。
+    fn claim_event(event: &Event) -> bool {
+        CLAIMED.with(|c| {
+            let mut slot = c.borrow_mut();
+            if slot
+                .as_ref()
+                .is_some_and(|prev| js_sys::Object::is(prev.as_ref(), event.as_ref()))
+            {
+                return false;
+            }
+            *slot = Some(event.clone());
+            true
+        })
+    }
+
+    /// `compositionend` の `data`（確定文字列）。読めなければ `None`。空文字は変換の取り消し。
+    fn composition_data(event: &Event) -> Option<String> {
+        js_sys::Reflect::get(event.as_ref(), &JsValue::from_str("data"))
+            .ok()?
+            .as_string()
     }
 
     type SharedOnAction<F> = std::rc::Rc<std::cell::RefCell<F>>;
@@ -982,6 +1008,10 @@ mod wiring {
         let Some(digit) = resolve_generic_digit(root, event) else {
             return;
         };
+        // 入れ子の配線 root では最内の配線だけが処理する（外側は印で見送る）。
+        if !claim_event(event) {
+            return;
+        }
         // ネイティブの削除・キャレット移動を止める。これが汎用 keydown 配線との排他にもなる。
         event.prevent_default();
         for action in key_dispatches(digit.index, intent) {
@@ -1013,6 +1043,9 @@ mod wiring {
         let Ok(text) = data.get_data("text/plain") else {
             return;
         };
+        if !claim_event(event) {
+            return;
+        }
         // 生のクリップボード文字列を DOM の桁へ入れない（反映は状態機械の値だけ）。
         event.prevent_default();
         let PasteText::Text(text) = classify_paste_text(&text) else {
@@ -1051,6 +1084,14 @@ mod wiring {
         ) else {
             return;
         };
+        // 変換の取り消しは `data` が空（既存の数字が復元されても input.value は空にならない）。
+        // 確定として扱うとフォーカスが進むため、何も dispatch しない。
+        if composition_data(event).is_some_and(|d| d.is_empty()) {
+            return;
+        }
+        if !claim_event(event) {
+            return;
+        }
         let (actions, scope) = match classify_live(input) {
             // 変換の取り消し（確定値なし）は何もしない。
             Classified::Empty => return,
