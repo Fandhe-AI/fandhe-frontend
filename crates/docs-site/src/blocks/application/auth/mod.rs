@@ -9,6 +9,7 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod auth_device_approve;
 mod auth_dropdown_panel;
 mod auth_oauth_consent;
 mod auth_otp_verify;
@@ -26,6 +27,7 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        auth_device_approve::BLOCK,
         auth_dropdown_panel::BLOCK,
         auth_oauth_consent::BLOCK,
         auth_otp_verify::BLOCK,
