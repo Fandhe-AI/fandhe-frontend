@@ -806,8 +806,8 @@ let tick = Closure::<dyn FnMut()>::new(|| {
 
 ## 14. PinInput の入力配線（`pin-input` feature、イシュー #3834）
 
-`pin-input` feature は PinInput の桁 input への 1 文字入力と、状態機械が決めた桁へのフォーカス移動を
-配線します。貼り付け・Backspace/Delete/矢印キーは対象外です（#3835）。
+`pin-input` feature は PinInput の桁 input への入力・貼り付け・Backspace/Delete/矢印キー・IME 確定入力と、
+状態機械が決めた桁へのフォーカス移動を配線します（#3834・#3835）。
 
 ### 14.1 設計の原則
 
@@ -860,8 +860,14 @@ DOM の値の反映とフォーカス移動は行われません（見た目は�
 
 ### 14.4 本配線が触れない入力と挙動の注意
 
-- 0 文字（ネイティブ Backspace/Delete）・2 文字以上（貼り付け・autofill）・IME 確定入力は、状態にも
-  DOM の値にも触れません（#3835 の担当）。IME は Chrome/Firefox で確定後に `input` が来ないため、
-  確定文字は状態へ渡らず DOM に残ります。DOM の値の書き込みは `input` のあった桁 1 つに限ります。
+- keydown の Backspace/Delete/ArrowLeft/ArrowRight は `preventDefault` したうえで `backspace`/`delete`/
+  `prev`/`next` を dispatch します（修飾キー付き・変換中は何もしません）。`paste` は `clipboardData` の
+  テキストを無加工で `paste` へ渡し、2 文字以上の `input`（autofill）も同じです。区切り除去・大文字そろえは
+  状態機械の入力補助で、DOM 層は加工しません。256 文字を超えるテキストは dispatch しません。
+- 0 文字の `input`（モバイルの削除等）は `inputType` が後方削除系なら `backspace`、それ以外は `delete` です。
+  IME 確定入力は `compositionend` で受けます。
+- `data-action-input` を持つ桁では keydown・paste・`compositionend` も dispatch しません。キー操作を
+  アプリで扱うときは `data-action-keydown` を使います。
+- DOM の値の書き込みは、1 文字入力・削除では操作のあった桁 1 つ、貼り付け・autofill では全桁です。
 - 配線は 1 root につき 1 回です。入れ子の配線 root では内側だけが反映します。
-- 1 打鍵で `"focus"` と `"input"` の 2 回 dispatch するため、`on_update` も 2 回走ります。
+- 1 イベントで `"focus"` と本体アクションの 2 回 dispatch するため、`on_update` も 2 回走ります。

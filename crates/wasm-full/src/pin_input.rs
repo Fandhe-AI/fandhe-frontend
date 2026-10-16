@@ -1,15 +1,16 @@
 //! PinInput（`fandhe-frontend-headless-ui` `pin_input` モジュール）の
-//! `input` / `focusin` → dispatch 配線（イシュー #3834、親 #3831）。
+//! `input` / `focusin` / `keydown` / `paste` / `compositionend` → dispatch 配線
+//! （イシュー #3834・#3835、親 #3831）。
 //!
 //! # 背景
 //!
 //! `crates/headless-ui/src/pin_input.rs` は桁ごとの `input` パーツ
-//! （`data-index`・`maxlength="1"`）と `"input"`/`"focus"` 等の dispatch 契約
-//! （`PinInput::decode_action`）を提供する一方、実 DOM のイベントを dispatch へ
-//! つなぐ配線を「wasm 層の後続責務」として残していた。本モジュールは
-//! そのうち **1 文字入力と次桁へのフォーカス移動** だけを実装する。
-//! 貼り付け・Backspace/Delete/矢印キー・実ブラウザ検証は後続の #3835/#3836 の担当で、
-//! 本モジュールは `paste`/`keydown` に一切触れない。
+//! （`data-index`・`maxlength="1"`）と `"input"`/`"backspace"`/`"delete"`/`"prev"`/
+//! `"next"`/`"focus"`/`"paste"` 等の dispatch 契約（`PinInput::decode_action`）を提供する
+//! 一方、実 DOM のイベントを dispatch へつなぐ配線を「wasm 層の後続責務」として残していた。
+//! 本モジュールは #3834 で 1 文字入力と次桁へのフォーカス移動を、#3835 で貼り付け・
+//! Backspace/Delete/矢印キー・autofill・モバイルの削除・IME 確定入力を実装する。
+//! 実ブラウザでの網羅的な検証は #3836 の担当。
 //!
 //! # 不変条件（本モジュールの設計の核）
 //!
@@ -22,7 +23,7 @@
 //! - ライブ `value`・`value` content attribute・文字比較からの受理の推定。
 //! - 「受理されたら次桁（`index + 1`）」といった `focused` の推測。
 //!
-//! 流れは `input`（capture: 入力された桁の場所と 1 文字の記録のみ）→ 状態機械へ dispatch
+//! 流れは `input`（capture: 入力された桁の場所と値の分類の記録のみ）→ 状態機械へ dispatch
 //! （bubble）→ 状態の読み戻し → DOM 反映（各桁の値とフォーカス）の 1 本道で、判断は
 //! 状態機械の中にしかない。受理・拒否・文字種判定・大文字そろえ・同じ文字の打ち直し・
 //! `focused` の前進は、すべて状態機械の結果として値とフォーカスに現れる。
@@ -59,27 +60,65 @@
 //!
 //! # dispatch とアクションの対応
 //!
-//! | DOM イベント | 条件 | アクション | payload |
+//! `index` は対象桁の `data-index`。どの経路も先頭に `"focus"(index)` を送る（アプリ状態の
+//! focused が古くても、DOM で操作された桁へ作用させ、拒否時のフォーカス状態を実際の DOM と
+//! そろえるため）。
+//!
+//! | DOM イベント | 条件 | dispatch 列 | DOM の値の書き込み範囲 |
 //! |---|---|---|---|
-//! | `input`（桁 input） | 値がちょうど 1 文字（Root 内で操作可能） | `"focus"` → `"input"` | `data-index` → その 1 文字（無加工） |
-//! | `focusin`（桁 input） | `data-index` が桁数未満 | `"focus"` | `data-index` |
+//! | `input`（桁 input） | 値がちょうど 1 文字 | `focus` → `input`（その 1 文字、無加工） | その桁のみ |
+//! | `input` | 2 文字以上（autofill・`insertFromPaste`、上限以内） | `focus` → `paste`（ライブ値、無加工） | 全桁 |
+//! | `input` | 0 文字・`inputType` が後方削除系 | `focus` → `backspace` | その桁のみ |
+//! | `input` | 0 文字・上記以外または不明 | `focus` → `delete` | その桁のみ |
+//! | `keydown` Backspace / Delete | 修飾キーなし・変換中でない | `focus` → `backspace` / `delete` | その桁のみ |
+//! | `keydown` ArrowLeft / ArrowRight | 同上 | `focus` → `prev` / `next` | 書かない（フォーカスのみ） |
+//! | `paste` | `clipboardData` あり・`text/plain` が上限以内 | `focus` → `paste`（無加工） | 全桁 |
+//! | `compositionend` | 桁の値が 1 文字 / 2 文字以上 | `focus` → `input` / `paste` | その桁のみ / 全桁 |
+//! | `focusin`（桁 input） | `data-index` が桁数未満 | `focus` | 書かない |
 //!
-//! `"focus"` を `"input"` の直前に送るのは、アプリ状態の focused が古くても DOM で入力された桁へ
-//! 書き込ませるため。0 文字（削除系）と 2 文字以上（autofill・`insertFromPaste`）は何もしない
-//! （DOM の値も消さない）。これらは #3835 が `"paste"` 等へ接続する。
+//! 後方削除系の `inputType` は `deleteContentBackward`・`deleteWordBackward`・
+//! `deleteSoftLineBackward`・`deleteHardLineBackward`。それ以外（`deleteContentForward`・
+//! `deleteByCut`・`historyUndo` 等）と不明（`InputEvent` でない合成 `Event`）は `delete` に
+//! そろえる（消えた桁でキャレットが留まる DOM の実態に一致させる）。
 //!
-//! # 本モジュールが状態にも DOM の値にも触れない入力（#3835 の担当）
+//! 状態機械の `Paste` は発生した桁に関わらず **先頭の桁から** 充填する。DOM 層は対象桁から
+//! 詰めるような補正をしない（`"focus"` を前置するのは拒否時のフォーカスをそろえるためだけ）。
+//! 区切り文字の除去・大文字そろえ・桁数や文字種の適否は状態機械の入力補助で、DOM 層は
+//! クリップボードのテキストを無加工で渡す。
 //!
-//! - 0 文字（ネイティブの Backspace/Delete）・2 文字以上（貼り付け・autofill）: dispatch せず、
-//!   DOM の値も書き換えない。状態機械は変わらないため、DOM と状態が食い違ったままになりうる。
-//! - **IME 確定入力は未対応**: `isComposing` 中の `input` は無視する。Chrome・Firefox では
-//!   `isComposing=true` の最後の `input` の後に `compositionend` が来て、その後に `input` は来ないため、
-//!   確定した文字は状態機械へ渡らず DOM に残る。`compositionstart`/`compositionend` の扱いは #3835
-//!   で実装する（`events::wire_events` の `compositionend` 補完〔#2069〕は `data-action-input` 経路用で、
-//!   汎用経路の桁には効かない）。
+//! 書き込み範囲を「その桁のみ」に絞るのは、ネイティブで削除済みの別の桁を状態から復活させない
+//! ため。貼り付け・autofill は状態機械が全桁を置き換えるので「全桁」（状態と異なる桁だけ書く）。
 //!
-//! DOM の値の書き込みは「`input` のあった桁 1 つ」に限る（ネイティブ削除済みの別の桁の値を
-//! 状態から復活させないため）。
+//! # `preventDefault` の方針
+//!
+//! - keydown の 4 キーは処理したときに `preventDefault` する。ネイティブの削除・キャレット移動が
+//!   起きず、後続の 0 文字 `input` で二重に dispatch されない。修飾キー付き・変換中
+//!   （`isComposing` / keyCode 229）は dispatch も `preventDefault` もしない（ネイティブ動作に任せる。
+//!   例: Ctrl+Backspace は `deleteWordBackward` の 0 文字 `input` として `backspace` に反映される）。
+//! - `paste` は `clipboardData` を読めたときだけ `preventDefault` して dispatch する（生のクリップ
+//!   ボード文字列は DOM の桁に入らず、反映は状態機械の値だけになる）。`clipboardData` が無い・読めない
+//!   ときは何もせず、ネイティブ挿入で起きる `input` の経路に任せる。
+//! - 2 文字以上・0 文字の `input` と `compositionend` はイベント後のため `preventDefault` しない。
+//! - `stopPropagation` は呼ばない（document/window の部品の配線を壊さない）。
+//!
+//! # 汎用 keydown 配線（`events::wire_keydown`）との排他
+//!
+//! 本配線は `Runtime::mount`/`hydrate` で `wire_keydown` より前に登録され、`wire_keydown` は
+//! 冒頭で `default_prevented()` なら何もしない。処理した 4 キーへの `preventDefault` がそのまま
+//! 排他になる。`keydown_claim`（#3768 方式 2b）には **登録しない**。あの登録簿は root の bubble より後に
+//! 動く document/window の部品（overlay・sidebar・command）向けで、root の bubble で先に動く本配線は
+//! `preventDefault` で足りるため。
+//!
+//! # IME
+//!
+//! - keydown は `isComposing` または keyCode 229 なら無視する。
+//! - 変換中（`isComposing`）の `input` は無視する。確定は `compositionend` で受け、桁の確定値を
+//!   1 文字なら `input`、2 文字以上なら `paste` として dispatch する（`data` が空、または 0 文字は変換の取り消しで何もしない）。
+//! - Safari 系は確定後に非 composing の `input`（`inputType` が `insertFromComposition` 等）を追加で
+//!   発火することがある。`compositionend` を処理した桁を 1 回だけ記録し、同じ桁の直後の
+//!   composition 系 `inputType` の `input` は dispatch しない（二重適用の防止）。記録は次の `input`・
+//!   `keydown` で必ず破棄する。
+//! - `compositionstart` は購読しない（`input` 側の `isComposing` 判定と上記ガードで足りる）。
 //!
 //! # `data-action-input` を持つ桁（アプリ所有の経路）
 //!
@@ -96,12 +135,17 @@
 //!   ホストの `update` で `Focus(i)` → `Input(c)` を順に適用する等）。汎用イベントは `data-index` を送らない。
 //! - `focusin` では本モジュールは何も dispatch しないため、桁の選択（クリック・Tab）の同期もアプリの責務。
 //! - 読み戻し field を実装しなければ、フォーカス移動と値の反映は行われない。
+//! - `keydown`・`paste`・`compositionend` でも所有者のいる桁は dispatch も `preventDefault` もしない
+//!   （`paste` を止めるとアプリの `input` 経路が発火しなくなるため）。`input`（2 文字以上・0 文字を含む）
+//!   だけがアプリの dispatch 後の読み戻し反映を行う（値の書き込みはその桁のみ）。キー操作をアプリで
+//!   扱いたいときは `data-action-keydown`（汎用 keydown 配線）を使う。
 //!
 //! # 配線の回数・入れ子・dispatch 回数
 //!
 //! - 配線は 1 root につき 1 回。入れ子の配線 root では capture の記録（`PENDING`）が 1 スロットのため、
-//!   内側の配線だけが反映する。
-//! - 1 打鍵で `"focus"` と `"input"` の 2 回 dispatch するため、`on_update` も 2 回走る。
+//!   内側の配線だけが反映する。`keydown` / `paste` / `compositionend` は処理済みイベントの印
+//!   （`CLAIMED`）で最内の配線だけが処理する。
+//! - 1 イベントで `"focus"` と本体アクションの 2 回 dispatch するため、`on_update` も 2 回走る。
 //!
 //! # 複数インスタンス
 //!
@@ -130,16 +174,21 @@
 //!
 //! # `docs/policy/intentional-non-adoption.md` §3.25 との整理
 //!
-//! 本モジュールは文字種の判定も値の検証も行わない。値の正しさ（kind への適合）は
-//! 状態機械とアプリ側の責務のままである。
+//! 本モジュールは文字種の判定も値の検証も正規化も行わない。区切り除去と大文字そろえは
+//! 状態機械の入力補助、値の正しさ（kind への適合）は状態機械とアプリ側の責務のままである。
 //!
 //! # セキュリティ不変条件
 //!
-//! - `input.value` は先頭 2 文字までしか読まない。`data-index` は `usize` へパースし桁数未満を
-//!   検査する（fail-closed）。DOM へ書く値は状態機械が返した桁の値（1 文字以下）に限り、
-//!   `HtmlInputElement::set_value` のみを使う。HTML 文字列は組み立てない（REQ-1）。
-//! - リスナーは配線 1 回につき 3 個（`Closure::forget` 3 回: `input` capture・`input` bubble・`focusin`）で固定する。
-//! - PIN/OTP は秘密値のため、値・payload を console やエラーに出さない。
+//! - `input.value` は分類に必要な範囲（先頭 2 文字）と、`MAX_PASTE_CHARS` 以下の貼り付け候補の
+//!   取り出しにしか使わない。`MAX_PASTE_CHARS` は資源上限であって値の検証ではない（上限を超えた
+//!   テキストは dispatch せず、貼り付けは `preventDefault` 済みで DOM は変わらない）。
+//!   `data-index` は `usize` へパースし桁数未満を検査する（fail-closed）。DOM へ書く値は状態機械が
+//!   返した桁の値（1 文字以下）に限り、`HtmlInputElement::set_value` のみを使う。HTML 文字列は
+//!   組み立てない（REQ-1）。
+//! - リスナーは配線 1 回につき 6 個（`Closure::forget` 6 回: `input` capture・`input` bubble・`focusin`・
+//!   `keydown`・`paste`・`compositionend`）で固定する。
+//! - PIN/OTP とクリップボードのテキストは秘密値のため、値・payload を console やエラーに出さない。
+//!   `clipboardData` が無い・`getData` が失敗したときは何もしない（fail-closed）。
 
 use crate::events::ActionRef;
 use fandhe_frontend_headless_ui::pin_input::PinInput;
@@ -155,6 +204,18 @@ pub const ROOT_PART: &str = "root";
 pub const ACTION_INPUT: &str = "input";
 /// 桁へのフォーカス同期アクション名（`PinInput::decode_action`）。
 pub const ACTION_FOCUS: &str = "focus";
+/// Backspace（現在桁を消去し前の桁へ）アクション名。
+pub const ACTION_BACKSPACE: &str = "backspace";
+/// Delete（現在桁を消去、フォーカスは動かさない）アクション名。
+pub const ACTION_DELETE: &str = "delete";
+/// 前の桁へフォーカスを移すアクション名。
+pub const ACTION_PREV: &str = "prev";
+/// 次の桁へフォーカスを移すアクション名。
+pub const ACTION_NEXT: &str = "next";
+/// 貼り付け・autofill のテキストを渡すアクション名。
+pub const ACTION_PASTE: &str = "paste";
+/// 貼り付け候補テキストの文字数上限（資源上限。値の検証ではない、モジュール doc 参照）。
+pub const MAX_PASTE_CHARS: usize = 256;
 
 /// `BindingSource` 予約 field の接頭辞（モジュール doc「読み戻しの契約」参照）。
 const FIELD_PREFIX: &str = "pin-input.";
@@ -162,11 +223,11 @@ const FIELD_PREFIX: &str = "pin-input.";
 /// `input` イベント後の `input.value` の分類（先頭 2 文字だけを読んだ結果）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputValue {
-    /// 空文字（削除系。#3835 の担当のため何もしない）。
+    /// 空文字（削除系。`backspace`/`delete` へ振り分ける）。
     Empty,
     /// ちょうど 1 文字。
     Single(char),
-    /// 2 文字以上（autofill・貼り付け。#3835 の担当のため何もしない）。
+    /// 2 文字以上（autofill・貼り付け。`paste` へ振り分ける）。
     Multi,
 }
 
@@ -179,7 +240,7 @@ pub fn parse_digit_index(raw: Option<&str>, count: usize) -> Option<usize> {
 
 /// `input.value` を先頭 2 文字だけ読んで分類する（巨大な値でも確保量は増えない）。
 ///
-/// 分類は「どのアクションへ送るか（1 文字入力か、#3835 の担当か）」の振り分けだけで、
+/// 分類は「どのアクションへ送るか（1 文字入力・貼り付け・削除）」の振り分けだけで、
 /// 受理・拒否の判定ではない（文字種の判定は状態機械が行う）。
 #[must_use]
 pub fn classify_input_value(value: &str) -> InputValue {
@@ -205,6 +266,116 @@ pub fn input_dispatches(index: usize, c: char) -> [ActionRef; 2] {
             payload: c.to_string(),
         },
     ]
+}
+
+fn action(name: &str, payload: String) -> ActionRef {
+    ActionRef {
+        action: name.to_string(),
+        payload,
+    }
+}
+
+/// キー操作の意図（keydown のうち本配線が処理する 4 キー）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyIntent {
+    /// Backspace。
+    Backspace,
+    /// Delete。
+    Delete,
+    /// ArrowLeft。
+    Prev,
+    /// ArrowRight。
+    Next,
+}
+
+/// keydown を [`KeyIntent`] へ分類する（処理しないときは `None`）。
+///
+/// 修飾キー付き・変換中（`is_composing` または `key_code == 229`）はネイティブ動作に任せるため
+/// `None`。`key` は大文字小文字を区別して完全一致で比較する。
+#[must_use]
+pub fn key_intent(
+    key: &str,
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    meta: bool,
+    is_composing: bool,
+    key_code: u32,
+) -> Option<KeyIntent> {
+    if ctrl || alt || shift || meta || is_composing || key_code == 229 {
+        return None;
+    }
+    match key {
+        "Backspace" => Some(KeyIntent::Backspace),
+        "Delete" => Some(KeyIntent::Delete),
+        "ArrowLeft" => Some(KeyIntent::Prev),
+        "ArrowRight" => Some(KeyIntent::Next),
+        _ => None,
+    }
+}
+
+/// keydown で dispatch する列（`focus` → 対応アクション）。
+#[must_use]
+pub fn key_dispatches(index: usize, intent: KeyIntent) -> [ActionRef; 2] {
+    let name = match intent {
+        KeyIntent::Backspace => ACTION_BACKSPACE,
+        KeyIntent::Delete => ACTION_DELETE,
+        KeyIntent::Prev => ACTION_PREV,
+        KeyIntent::Next => ACTION_NEXT,
+    };
+    [
+        action(ACTION_FOCUS, index.to_string()),
+        action(name, String::new()),
+    ]
+}
+
+/// 貼り付け・autofill で dispatch する列（`focus` → `paste`）。`text` は無加工で渡す
+/// （区切り除去・大文字そろえ・適否判定は状態機械の責務）。
+#[must_use]
+pub fn paste_dispatches(index: usize, text: &str) -> [ActionRef; 2] {
+    [
+        action(ACTION_FOCUS, index.to_string()),
+        action(ACTION_PASTE, text.to_string()),
+    ]
+}
+
+/// 0 文字 `input`（削除系）で dispatch する列。後方削除系の `inputType` は `backspace`、
+/// それ以外と不明（`None`）は `delete`（モジュール doc の対応表）。
+#[must_use]
+pub fn deletion_dispatches(index: usize, input_type: Option<&str>) -> [ActionRef; 2] {
+    let name = match input_type {
+        Some(
+            "deleteContentBackward"
+            | "deleteWordBackward"
+            | "deleteSoftLineBackward"
+            | "deleteHardLineBackward",
+        ) => ACTION_BACKSPACE,
+        _ => ACTION_DELETE,
+    };
+    [
+        action(ACTION_FOCUS, index.to_string()),
+        action(name, String::new()),
+    ]
+}
+
+/// 貼り付け候補テキストの上限判定の結果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasteText<'a> {
+    /// [`MAX_PASTE_CHARS`] 以内（無加工のまま渡す）。
+    Text(&'a str),
+    /// 上限超過（dispatch しない）。
+    Oversized,
+}
+
+/// テキストが [`MAX_PASTE_CHARS`] 以内かだけを判定する（先頭 `MAX + 1` 文字で打ち切る。
+/// 加工も検証もしない）。
+#[must_use]
+pub fn classify_paste_text(text: &str) -> PasteText<'_> {
+    if text.chars().nth(MAX_PASTE_CHARS).is_some() {
+        PasteText::Oversized
+    } else {
+        PasteText::Text(text)
+    }
 }
 
 /// `BindingSource` の予約 field が指す状態の種別。
@@ -299,19 +470,28 @@ pub struct ReflectPlan {
     pub focus: Option<usize>,
 }
 
+/// DOM の値を状態へそろえる桁の範囲。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueScope {
+    /// 値は書かない（フォーカスのみ。`focusin`・矢印キー）。
+    None,
+    /// 指定の 1 桁だけ書く（ネイティブ削除済みの別の桁を復活させない）。
+    One(usize),
+    /// 全桁（貼り付け・autofill は状態機械が全桁を置き換える）。
+    All,
+}
+
 /// 状態の読み戻し結果から DOM 反映の計画を作る（純粋関数）。
 ///
-/// - `snapshot` があれば、値は `value_index`（`input` のあった桁）だけを状態機械の値へそろえる
-///   （他の桁は触らない。ネイティブ削除などで状態と食い違う桁を復活させないため）。
+/// - `snapshot` があれば、値は `scope` の範囲だけを状態機械の値へそろえる（状態と異なる桁のみ）。
 ///   フォーカスは状態機械の `focused` へ置く（受理・拒否・正規化・次桁への前進はすべて状態機械の結果）。
-///   `value_index` が `None`（`focusin`）なら値は書かない。
 /// - `snapshot` が無ければ（読み戻せない）値は触らず、フォーカスは `fallback_focus`
 ///   （`focusin` でユーザーが選んだ桁の復元）にだけ使う。
 #[must_use]
-pub fn reflect_plan(
+pub fn reflect_plan_scoped(
     snapshot: Option<&PinInputSnapshot>,
     live: &[String],
-    value_index: Option<usize>,
+    scope: ValueScope,
     fallback_focus: Option<usize>,
 ) -> ReflectPlan {
     let Some(snapshot) = snapshot else {
@@ -320,36 +500,62 @@ pub fn reflect_plan(
             focus: fallback_focus,
         };
     };
-    let value_writes = value_index
-        .and_then(|i| {
-            let digit = snapshot.digits.get(i)?;
-            live.get(i)
-                .is_some_and(|l| l != digit)
-                .then(|| (i, digit.clone()))
-        })
-        .into_iter()
-        .collect();
+    let differs = |i: usize| -> Option<(usize, String)> {
+        let digit = snapshot.digits.get(i)?;
+        live.get(i)
+            .is_some_and(|l| l != digit)
+            .then(|| (i, digit.clone()))
+    };
+    let value_writes = match scope {
+        ValueScope::None => Vec::new(),
+        ValueScope::One(i) => differs(i).into_iter().collect(),
+        ValueScope::All => (0..snapshot.digits.len()).filter_map(differs).collect(),
+    };
     ReflectPlan {
         value_writes,
         focus: snapshot.focused,
     }
 }
 
+/// [`reflect_plan_scoped`] の「1 桁」「なし」だけを受ける互換形（`value_index` が `None` なら値は書かない）。
+#[must_use]
+pub fn reflect_plan(
+    snapshot: Option<&PinInputSnapshot>,
+    live: &[String],
+    value_index: Option<usize>,
+    fallback_focus: Option<usize>,
+) -> ReflectPlan {
+    let scope = value_index.map_or(ValueScope::None, ValueScope::One);
+    reflect_plan_scoped(snapshot, live, scope, fallback_focus)
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        classify_input_value, input_dispatches, parse_digit_index, reflect_plan,
-        snapshot_from_bound, InputValue, ACTION_FOCUS, INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
+        classify_input_value, classify_paste_text, deletion_dispatches, input_dispatches,
+        key_dispatches, key_intent, parse_digit_index, paste_dispatches, reflect_plan_scoped,
+        snapshot_from_bound, InputValue, KeyIntent, PasteText, ValueScope, ACTION_FOCUS,
+        INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
     };
     use crate::dom::has_disabled_ancestor;
     use crate::events::{ActionRef, ACTION_INPUT_ATTR};
     use fandhe_frontend_wasm_client::BoundValue;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlInputElement, InputEvent};
+    use web_sys::{ClipboardEvent, Element, Event, HtmlInputElement, InputEvent, KeyboardEvent};
 
     const INPUT_SELECTOR: &str = r#"[data-scope="pin-input"][data-part="input"]"#;
     const ROOT_SELECTOR: &str = r#"[data-scope="pin-input"][data-part="root"]"#;
+
+    /// capture 段で記録する入力の分類（受理・拒否の判断は含まない）。
+    enum PendingKind {
+        /// ちょうど 1 文字。
+        Single(char),
+        /// 2 文字以上。`None` は `MAX_PASTE_CHARS` 超過（dispatch しない）。
+        Multi(Option<String>),
+        /// 0 文字（削除系）。`inputType`（不明なら `None`）で `backspace`/`delete` を選ぶ。
+        Empty { input_type: Option<String> },
+    }
 
     /// capture 段で記録する「どの桁に何が入力されたか」（判断は含まない）。
     struct Pending {
@@ -358,9 +564,17 @@ mod wiring {
         ordinal: usize,
         index: usize,
         count: usize,
-        typed: char,
+        kind: PendingKind,
         /// `data-action-input` の所有者がいる（dispatch はアプリと `wire_events` が担う）。
         app_owned: bool,
+    }
+
+    /// `compositionend` 後の二重適用ガード。確定後の最初の `input` イベントを `seen` に記録し、
+    /// 同一イベントの伝播中は（入れ子の配線 root の全 capture リスナーで）抑止判定を維持する。
+    /// 別イベントが来た時点で破棄する（`take()` で 1 回消費する方式は外側が消費して内側が漏れる）。
+    struct ComposedGuard {
+        element: Element,
+        seen: Option<Event>,
     }
 
     thread_local! {
@@ -368,6 +582,34 @@ mod wiring {
         static REFOCUSING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
         /// capture 段の記録。`input` イベントは同期的に capture → bubble と進むため 1 件で足りる。
         static PENDING: std::cell::RefCell<Option<Pending>> = const { std::cell::RefCell::new(None) };
+        /// 直近に `compositionend` を処理した桁 input（Safari 系の確定後の追加 `input` を 1 回だけ
+        /// 捨てるためのガード。次の `input`・`keydown` で必ず破棄する）。
+        static COMPOSED: std::cell::RefCell<Option<ComposedGuard>> = const { std::cell::RefCell::new(None) };
+        /// 直近に処理した `keydown` / `paste` / `compositionend` イベント。入れ子の配線 root で
+        /// 同一イベントが内側・外側の両ハンドラへ届いても、最初（最内）の 1 回だけ処理するための印。
+        static CLAIMED: std::cell::RefCell<Option<Event>> = const { std::cell::RefCell::new(None) };
+    }
+
+    /// 同一イベントを未処理なら処理済みとして印を付けて `true`、処理済みなら `false`。
+    fn claim_event(event: &Event) -> bool {
+        CLAIMED.with(|c| {
+            let mut slot = c.borrow_mut();
+            if slot
+                .as_ref()
+                .is_some_and(|prev| js_sys::Object::is(prev.as_ref(), event.as_ref()))
+            {
+                return false;
+            }
+            *slot = Some(event.clone());
+            true
+        })
+    }
+
+    /// `compositionend` の `data`（確定文字列）。読めなければ `None`。空文字は変換の取り消し。
+    fn composition_data(event: &Event) -> Option<String> {
+        js_sys::Reflect::get(event.as_ref(), &JsValue::from_str("data"))
+            .ok()?
+            .as_string()
     }
 
     type SharedOnAction<F> = std::rc::Rc<std::cell::RefCell<F>>;
@@ -486,16 +728,16 @@ mod wiring {
         digits
     }
 
-    /// 状態機械の状態を読み戻して DOM へ反映する（値は `value_index` の桁だけ、フォーカスは状態の `focused`）。
+    /// 状態機械の状態を読み戻して DOM へ反映する（値は `scope` の範囲だけ、フォーカスは状態の `focused`）。
     ///
-    /// 判断は [`reflect_plan`]（純粋関数）に閉じており、ここは計画を DOM へ適用するだけ。
+    /// 判断は [`reflect_plan_scoped`]（純粋関数）に閉じており、ここは計画を DOM へ適用するだけ。
     /// `fallback_focus` は読み戻せないときの `focusin` 用の復元先（モジュール doc 参照）。
     fn reflect(
         root: &Element,
         ordinal: usize,
         count: usize,
         fallback_focus: Option<usize>,
-        value_index: Option<usize>,
+        scope: ValueScope,
         read_bound: &ReadBound,
     ) {
         let digits = digit_elements(root, ordinal, count);
@@ -504,7 +746,7 @@ mod wiring {
             .map(|d| d.as_ref().map(HtmlInputElement::value).unwrap_or_default())
             .collect();
         let snapshot = snapshot_from_bound(ordinal, count, |field| read_bound(field));
-        let plan = reflect_plan(snapshot.as_ref(), &live, value_index, fallback_focus);
+        let plan = reflect_plan_scoped(snapshot.as_ref(), &live, scope, fallback_focus);
         for (index, value) in &plan.value_writes {
             if let Some(Some(input)) = digits.get(*index) {
                 input.set_value(value);
@@ -523,14 +765,16 @@ mod wiring {
         }
     }
 
-    /// `input`（capture / bubble）と `focusin` を `root` へ登録する（`Closure::forget` は計 3 回）。
+    /// `input`（capture / bubble）・`focusin`・`keydown`・`paste`・`compositionend` を `root` へ
+    /// 登録する（`Closure::forget` は計 6 回）。
     ///
-    /// - `input`（capture）: 入力された桁の場所と 1 文字を記録するだけ。この時点で要素は
-    ///   まだ差し替わっていない。
+    /// - `input`（capture）: 入力された桁の場所と値の分類（1 文字・2 文字以上・0 文字）を記録するだけ。
+    ///   この時点で要素はまだ差し替わっていない。
     /// - `input`（bubble）: `Runtime` では `wire_events` より後に登録されるため、アプリ所有の
-    ///   経路ではアプリの dispatch が済んでから実行される。所有者がいなければここで
-    ///   `"focus"` → `"input"` を dispatch し、いずれも状態の読み戻しで DOM を反映する。
+    ///   経路ではアプリの dispatch が済んでから実行される。所有者がいなければここで分類に応じた
+    ///   アクションを dispatch し、いずれも状態の読み戻しで DOM を反映する。
     /// - `focusin`: 所有者がいない桁だけ `"focus"` を dispatch して反映する。
+    /// - `keydown` / `paste` / `compositionend`: モジュール doc の対応表のとおり。
     ///
     /// `on_action` は dispatch できたとき `true` を返す。`read_bound` は予約 field の読み出し。
     ///
@@ -566,11 +810,41 @@ mod wiring {
         bubble_closure.forget();
 
         let focus_root = root.clone();
+        let focus_on_action = on_action.clone();
+        let focus_read = read_bound.clone();
         let focusin_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_focusin(&focus_root, &event, &on_action, &read_bound);
+            handle_focusin(&focus_root, &event, &focus_on_action, &focus_read);
         });
         root.add_event_listener_with_callback("focusin", focusin_closure.as_ref().unchecked_ref())?;
         focusin_closure.forget();
+
+        let key_root = root.clone();
+        let key_on_action = on_action.clone();
+        let key_read = read_bound.clone();
+        let keydown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_keydown(&key_root, &event, &key_on_action, &key_read);
+        });
+        root.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref())?;
+        keydown_closure.forget();
+
+        let paste_root = root.clone();
+        let paste_on_action = on_action.clone();
+        let paste_read = read_bound.clone();
+        let paste_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_paste(&paste_root, &event, &paste_on_action, &paste_read);
+        });
+        root.add_event_listener_with_callback("paste", paste_closure.as_ref().unchecked_ref())?;
+        paste_closure.forget();
+
+        let comp_root = root.clone();
+        let compositionend_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_compositionend(&comp_root, &event, &on_action, &read_bound);
+        });
+        root.add_event_listener_with_callback(
+            "compositionend",
+            compositionend_closure.as_ref().unchecked_ref(),
+        )?;
+        compositionend_closure.forget();
         Ok(())
     }
 
@@ -581,24 +855,64 @@ mod wiring {
             .unwrap_or(false)
     }
 
-    /// capture 段: 1 文字入力された桁の場所と文字を記録する（受理・拒否の判断はしない）。
+    /// 桁 input の値の分類。`Empty` は呼び出し側が `inputType` を添えて [`PendingKind::Empty`] にする。
+    enum Classified {
+        Empty,
+        Kind(PendingKind),
+    }
+
+    /// 桁 input の値を分類する。2 文字以上は `MAX_PASTE_CHARS` 以内のときだけテキストを持つ。
+    fn classify_live(input: &HtmlInputElement) -> Classified {
+        let value = input.value();
+        match classify_input_value(&value) {
+            InputValue::Empty => Classified::Empty,
+            InputValue::Single(c) => Classified::Kind(PendingKind::Single(c)),
+            InputValue::Multi => Classified::Kind(PendingKind::Multi(
+                matches!(classify_paste_text(&value), PasteText::Text(_)).then_some(value),
+            )),
+        }
+    }
+
+    /// capture 段: 入力された桁の場所と値の分類を記録する（受理・拒否の判断はしない）。
     fn record_input(root: &Element, event: &Event) {
         PENDING.with(|p| *p.borrow_mut() = None);
+        let composed = COMPOSED.with(|c| {
+            let mut slot = c.borrow_mut();
+            let mut guard = slot.take()?;
+            match &guard.seen {
+                Some(seen) if js_sys::Object::is(seen.as_ref(), event.as_ref()) => {}
+                // 別イベントの伝播に入ったので破棄する。
+                Some(_) => return None,
+                None => guard.seen = Some(event.clone()),
+            }
+            let element = guard.element.clone();
+            *slot = Some(guard);
+            Some(element)
+        });
+        let input_event = event.dyn_ref::<InputEvent>();
         // IME 変換中は確定前の文字列を扱わない（fail-closed）。
-        if event
-            .dyn_ref::<InputEvent>()
-            .is_some_and(InputEvent::is_composing)
-        {
+        if input_event.is_some_and(InputEvent::is_composing) {
             return;
         }
+        let input_type = input_event.map(InputEvent::input_type);
         let Some((target, instance_root)) = target_digit(root, event) else {
             return;
         };
+        // `compositionend` で処理済みの桁への、確定後の追加 `input`（Safari 系）は二重適用しない。
+        if composed.as_ref() == Some(&target)
+            && matches!(
+                input_type.as_deref(),
+                Some("insertFromComposition" | "insertCompositionText")
+            )
+        {
+            return;
+        }
         let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
             return;
         };
-        let InputValue::Single(typed) = classify_input_value(&input.value()) else {
-            return;
+        let kind = match classify_live(input) {
+            Classified::Kind(kind) => kind,
+            Classified::Empty => PendingKind::Empty { input_type },
         };
         let count = instance_inputs(&instance_root).len();
         let Some(index) = parse_digit_index(target.get_attribute("data-index").as_deref(), count)
@@ -615,7 +929,7 @@ mod wiring {
                 ordinal,
                 index,
                 count,
-                typed,
+                kind,
                 app_owned,
             });
         });
@@ -635,19 +949,213 @@ mod wiring {
         if !js_sys::Object::is(pending.event.as_ref(), event.as_ref()) {
             return;
         }
-        if !pending.app_owned {
-            let [focus, value] = input_dispatches(pending.index, pending.typed);
-            call(on_action, focus);
-            call(on_action, value);
+        let one = ValueScope::One(pending.index);
+        let (actions, scope) = match &pending.kind {
+            PendingKind::Single(c) => (Some(input_dispatches(pending.index, *c)), one),
+            PendingKind::Multi(Some(text)) => {
+                (Some(paste_dispatches(pending.index, text)), ValueScope::All)
+            }
+            PendingKind::Multi(None) => (None, one),
+            PendingKind::Empty { input_type } => (
+                Some(deletion_dispatches(pending.index, input_type.as_deref())),
+                one,
+            ),
+        };
+        if pending.app_owned {
+            // アプリ所有の桁は dispatch せず、値の書き込みもその桁だけにとどめる。
+            reflect(root, pending.ordinal, pending.count, None, one, read_bound);
+            return;
+        }
+        for action in actions.into_iter().flatten() {
+            call(on_action, action);
         }
         reflect(
             root,
             pending.ordinal,
             pending.count,
             None,
-            Some(pending.index),
+            scope,
             read_bound,
         );
+    }
+
+    /// 対象桁の解決結果（keydown・paste で共有）。
+    struct Digit {
+        ordinal: usize,
+        index: usize,
+        count: usize,
+    }
+
+    /// 操作可能で所有者のいない桁だけ返す（アプリ所有の桁は汎用 dispatch を送らない、モジュール doc 参照）。
+    fn resolve_generic_digit(root: &Element, event: &Event) -> Option<Digit> {
+        let (target, instance_root) = target_digit(root, event)?;
+        if has_input_action_owner(root, &target) {
+            return None;
+        }
+        let count = instance_inputs(&instance_root).len();
+        let index = parse_digit_index(target.get_attribute("data-index").as_deref(), count)?;
+        let ordinal = root_ordinal(root, &instance_root)?;
+        Some(Digit {
+            ordinal,
+            index,
+            count,
+        })
+    }
+
+    /// keydown: Backspace/Delete/ArrowLeft/ArrowRight を処理したときだけ `preventDefault` する。
+    fn handle_keydown<F: FnMut(ActionRef) -> bool>(
+        root: &Element,
+        event: &Event,
+        on_action: &SharedOnAction<F>,
+        read_bound: &ReadBound,
+    ) {
+        // 次の `input` へ Safari 系の確定後ガードを持ち越さない。
+        COMPOSED.with(|c| *c.borrow_mut() = None);
+        // 先行リスナーがキャンセル済みなら何もしない（`wire_keydown` と同じ）。
+        if event.default_prevented() {
+            return;
+        }
+        let Some(key) = event.dyn_ref::<KeyboardEvent>() else {
+            return;
+        };
+        let Some(intent) = key_intent(
+            &key.key(),
+            key.ctrl_key(),
+            key.alt_key(),
+            key.shift_key(),
+            key.meta_key(),
+            key.is_composing(),
+            key.key_code(),
+        ) else {
+            return;
+        };
+        let Some(digit) = resolve_generic_digit(root, event) else {
+            return;
+        };
+        // 入れ子の配線 root では最内の配線だけが処理する（外側は印で見送る）。
+        if !claim_event(event) {
+            return;
+        }
+        // ネイティブの削除・キャレット移動を止める。これが汎用 keydown 配線との排他にもなる。
+        event.prevent_default();
+        for action in key_dispatches(digit.index, intent) {
+            call(on_action, action);
+        }
+        let scope = match intent {
+            KeyIntent::Backspace | KeyIntent::Delete => ValueScope::One(digit.index),
+            KeyIntent::Prev | KeyIntent::Next => ValueScope::None,
+        };
+        reflect(root, digit.ordinal, digit.count, None, scope, read_bound);
+    }
+
+    /// paste: `clipboardData` の `text/plain` を無加工で `"paste"` へ渡す。読めなければ何もしない。
+    fn handle_paste<F: FnMut(ActionRef) -> bool>(
+        root: &Element,
+        event: &Event,
+        on_action: &SharedOnAction<F>,
+        read_bound: &ReadBound,
+    ) {
+        // 先行リスナーがキャンセル済みなら何もしない（全桁置換を防ぐ）。
+        if event.default_prevented() {
+            return;
+        }
+        let Some(clipboard) = event.dyn_ref::<ClipboardEvent>() else {
+            return;
+        };
+        let Some(data) = clipboard.clipboard_data() else {
+            return;
+        };
+        let Some(digit) = resolve_generic_digit(root, event) else {
+            return;
+        };
+        let Ok(text) = data.get_data("text/plain") else {
+            return;
+        };
+        if !claim_event(event) {
+            return;
+        }
+        // 生のクリップボード文字列を DOM の桁へ入れない（反映は状態機械の値だけ）。
+        event.prevent_default();
+        let PasteText::Text(text) = classify_paste_text(&text) else {
+            return;
+        };
+        for action in paste_dispatches(digit.index, text) {
+            call(on_action, action);
+        }
+        reflect(
+            root,
+            digit.ordinal,
+            digit.count,
+            None,
+            ValueScope::All,
+            read_bound,
+        );
+    }
+
+    /// compositionend: 桁の確定値を 1 文字なら `input`、2 文字以上なら `paste` として渡す。
+    fn handle_compositionend<F: FnMut(ActionRef) -> bool>(
+        root: &Element,
+        event: &Event,
+        on_action: &SharedOnAction<F>,
+        read_bound: &ReadBound,
+    ) {
+        let Some((target, instance_root)) = target_digit(root, event) else {
+            return;
+        };
+        let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
+            return;
+        };
+        let count = instance_inputs(&instance_root).len();
+        let (Some(index), Some(ordinal)) = (
+            parse_digit_index(target.get_attribute("data-index").as_deref(), count),
+            root_ordinal(root, &instance_root),
+        ) else {
+            return;
+        };
+        // 変換の取り消しは `data` が空（既存の数字が復元されても input.value は空にならない）。
+        // 確定として扱うとフォーカスが進むため、何も dispatch しない。
+        if composition_data(event).is_some_and(|d| d.is_empty()) {
+            return;
+        }
+        if !claim_event(event) {
+            return;
+        }
+        let (actions, scope) = match classify_live(input) {
+            // 変換の取り消し（確定値なし）は何もしない。
+            Classified::Empty => return,
+            Classified::Kind(PendingKind::Single(c)) => {
+                (Some(input_dispatches(index, c)), ValueScope::One(index))
+            }
+            Classified::Kind(PendingKind::Multi(Some(text))) => {
+                (Some(paste_dispatches(index, &text)), ValueScope::All)
+            }
+            Classified::Kind(_) => (None, ValueScope::One(index)),
+        };
+        COMPOSED.with(|c| {
+            *c.borrow_mut() = Some(ComposedGuard {
+                element: target.clone(),
+                seen: None,
+            })
+        });
+        if has_input_action_owner(root, &target) {
+            // アプリ所有の桁は dispatch せず、値の書き込みもその桁だけにとどめる。
+            reflect(
+                root,
+                ordinal,
+                count,
+                None,
+                ValueScope::One(index),
+                read_bound,
+            );
+            // 書き戻しで値が変わった（小文字 → 大文字等）場合、`wire_events` の重複防止ガードの
+            // 比較値を更新し、確定後の追加 `input` で同じ確定操作が再 dispatch されないようにする。
+            crate::events::rebase_composed_dispatched_value(target.as_ref(), &input.value());
+            return;
+        }
+        for action in actions.into_iter().flatten() {
+            call(on_action, action);
+        }
+        reflect(root, ordinal, count, None, scope, read_bound);
     }
 
     fn handle_focusin<F: FnMut(ActionRef) -> bool>(
@@ -687,7 +1195,14 @@ mod wiring {
         }
         // 再描画（構造フォールバック）で桁 input が差し替わるとフォーカスを失うため、
         // 状態機械の focused（読めなければ選ばれた桁）へ引き直した要素でフォーカスを戻す。
-        reflect(root, ordinal, count, Some(index), None, read_bound);
+        reflect(
+            root,
+            ordinal,
+            count,
+            Some(index),
+            ValueScope::None,
+            read_bound,
+        );
     }
 
     /// [`wire_pin_input_events`] に `Component` の dispatch と状態の読み戻しを接続する。

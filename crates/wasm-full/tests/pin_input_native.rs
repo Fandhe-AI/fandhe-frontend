@@ -12,10 +12,12 @@
 use fandhe_frontend_headless_ui::pin_input::{PinInput, PinInputKind};
 use fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_wasm_client::BoundValue;
+use fandhe_frontend_wasm_full::events::ActionRef;
 use fandhe_frontend_wasm_full::pin_input::{
-    bound_value_for, classify_input_value, field_name, input_dispatches, parse_digit_index,
-    parse_field, reflect_plan, snapshot_from_bound, InputValue, PinInputField, PinInputSnapshot,
-    ReflectPlan,
+    bound_value_for, classify_input_value, classify_paste_text, deletion_dispatches, field_name,
+    input_dispatches, key_dispatches, key_intent, parse_digit_index, parse_field, paste_dispatches,
+    reflect_plan, reflect_plan_scoped, snapshot_from_bound, InputValue, KeyIntent, PasteText,
+    PinInputField, PinInputSnapshot, ReflectPlan, ValueScope, MAX_PASTE_CHARS,
 };
 
 /// ホストの `BindingSource::bound_value`（予約 field を状態へ委譲する最小実装）。
@@ -324,4 +326,296 @@ fn value_writes_are_limited_to_the_typed_digit() {
     assert!(plan.value_writes.iter().all(|(i, _)| *i == 0));
     // 桁 0 のライブ値が状態と同じなら書き込みなし。
     assert!(plan.value_writes.is_empty());
+}
+// ---- #3835: keydown・paste・削除・IME の対応付け ----
+
+/// 配線が流す dispatch 列（`focus` → 本体）をそのまま状態機械へ流し、すべて名前契約どおり
+/// 受理される（`dispatch` が `true`）ことを確認したうえで反映計画を作る。
+fn simulate_actions(
+    pin: &mut PinInput,
+    actions: [ActionRef; 2],
+    live: &[&str],
+    scope: ValueScope,
+) -> ReflectPlan {
+    for action in actions {
+        assert!(
+            dispatch(pin, &action.action, &action.payload),
+            "{} は decode_action の名前契約と一致すること",
+            action.action
+        );
+    }
+    let snapshot = snapshot_from_bound(0, pin.count(), host_read(pin, 0));
+    let live: Vec<String> = live.iter().map(|s| (*s).to_string()).collect();
+    reflect_plan_scoped(snapshot.as_ref(), &live, scope, None)
+}
+
+fn filled(kind: PinInputKind, count: usize, text: &str) -> PinInput {
+    let mut pin = PinInput::new(count, kind);
+    let empty = vec![""; count];
+    for (i, c) in text.chars().enumerate() {
+        simulate_input(&mut pin, i, c, &empty);
+    }
+    pin
+}
+
+#[test]
+fn key_intent_truth_table() {
+    let plain = |key: &str| key_intent(key, false, false, false, false, false, 0);
+    assert_eq!(plain("Backspace"), Some(KeyIntent::Backspace));
+    assert_eq!(plain("Delete"), Some(KeyIntent::Delete));
+    assert_eq!(plain("ArrowLeft"), Some(KeyIntent::Prev));
+    assert_eq!(plain("ArrowRight"), Some(KeyIntent::Next));
+    for other in [
+        "a",
+        "Enter",
+        "Tab",
+        "Home",
+        "End",
+        "ArrowUp",
+        "backspace",
+        "",
+    ] {
+        assert_eq!(plain(other), None, "{other}");
+    }
+    // 修飾キー・変換中・keyCode 229 はネイティブに任せる。
+    let k = |ctrl, alt, shift, meta, composing, code| {
+        key_intent("Backspace", ctrl, alt, shift, meta, composing, code)
+    };
+    assert_eq!(k(true, false, false, false, false, 8), None);
+    assert_eq!(k(false, true, false, false, false, 8), None);
+    assert_eq!(k(false, false, true, false, false, 8), None);
+    assert_eq!(k(false, false, false, true, false, 8), None);
+    assert_eq!(k(false, false, false, false, true, 8), None);
+    assert_eq!(k(false, false, false, false, false, 229), None);
+}
+
+#[test]
+fn key_dispatches_send_focus_then_action_with_empty_payload() {
+    for (intent, name) in [
+        (KeyIntent::Backspace, "backspace"),
+        (KeyIntent::Delete, "delete"),
+        (KeyIntent::Prev, "prev"),
+        (KeyIntent::Next, "next"),
+    ] {
+        let [focus, body] = key_dispatches(3, intent);
+        assert_eq!(
+            (focus.action.as_str(), focus.payload.as_str()),
+            ("focus", "3")
+        );
+        assert_eq!((body.action.as_str(), body.payload.as_str()), (name, ""));
+    }
+}
+
+#[test]
+fn backspace_clears_the_digit_and_moves_focus_back() {
+    let mut pin = filled(PinInputKind::Numeric, 4, "123");
+    // 桁 2 へ DOM フォーカスがあり、ライブ値は '3'（keydown は preventDefault 済みで DOM は未変更）。
+    let plan = simulate_actions(
+        &mut pin,
+        key_dispatches(2, KeyIntent::Backspace),
+        &["1", "2", "3", ""],
+        ValueScope::One(2),
+    );
+    assert_eq!(pin.digit(2), "");
+    assert_eq!(plan.value_writes, vec![(2, String::new())]);
+    assert_eq!(plan.focus, Some(1));
+    // 先頭桁では留まる。
+    let plan = simulate_actions(
+        &mut pin,
+        key_dispatches(0, KeyIntent::Backspace),
+        &["1", "2", "", ""],
+        ValueScope::One(0),
+    );
+    assert_eq!(pin.digit(0), "");
+    assert_eq!(plan.focus, Some(0));
+}
+
+#[test]
+fn delete_clears_the_digit_without_moving_focus() {
+    let mut pin = filled(PinInputKind::Numeric, 4, "123");
+    let plan = simulate_actions(
+        &mut pin,
+        key_dispatches(1, KeyIntent::Delete),
+        &["1", "2", "3", ""],
+        ValueScope::One(1),
+    );
+    assert_eq!(pin.digit(1), "");
+    assert_eq!(plan.value_writes, vec![(1, String::new())]);
+    assert_eq!(plan.focus, Some(1));
+    assert_eq!(pin.digit(2), "3");
+}
+
+#[test]
+fn arrows_move_focus_only_and_stop_at_the_ends() {
+    let mut pin = filled(PinInputKind::Numeric, 3, "12");
+    let live = ["1", "2", ""];
+    let mut go = |index, intent| {
+        simulate_actions(
+            &mut pin,
+            key_dispatches(index, intent),
+            &live,
+            ValueScope::None,
+        )
+    };
+    let plan = go(1, KeyIntent::Prev);
+    assert_eq!(
+        plan,
+        ReflectPlan {
+            value_writes: Vec::new(),
+            focus: Some(0)
+        }
+    );
+    assert_eq!(go(0, KeyIntent::Prev).focus, Some(0));
+    let plan = go(1, KeyIntent::Next);
+    assert_eq!(
+        plan,
+        ReflectPlan {
+            value_writes: Vec::new(),
+            focus: Some(2)
+        }
+    );
+    let plan = go(2, KeyIntent::Next);
+    assert_eq!(plan.focus, Some(2));
+    assert!(plan.value_writes.is_empty());
+}
+
+#[test]
+fn paste_distributes_from_the_first_digit_regardless_of_origin() {
+    // RFC 8628 ユーザーコード形（区切りは状態機械が除去）。桁 5 で貼り付けても先頭から充填される。
+    let mut pin = PinInput::new(8, PinInputKind::AlphanumericUppercase);
+    let text = "WDJB-MJHT";
+    let [focus, body] = paste_dispatches(5, text);
+    assert_eq!(body.payload, text, "DOM は無加工で渡す");
+    assert_eq!(focus.payload, "5");
+    let plan = simulate_actions(&mut pin, [focus, body], &[""; 8], ValueScope::All);
+    assert_eq!(pin.value(), "WDJBMJHT");
+    assert_eq!(pin.digit(0), "W");
+    assert_eq!(pin.digit(7), "T");
+    assert_eq!(plan.value_writes.len(), 8);
+    assert_eq!(plan.value_writes[0], (0, "W".to_string()));
+
+    let mut pin = PinInput::new(8, PinInputKind::Numeric);
+    simulate_actions(
+        &mut pin,
+        paste_dispatches(0, "1234 5678"),
+        &[""; 8],
+        ValueScope::All,
+    );
+    assert_eq!(pin.value(), "12345678");
+
+    // 小文字は大文字そろえ（状態機械の入力補助）で大文字になり、ライブ値との差だけ書く。
+    let mut pin = PinInput::new(8, PinInputKind::AlphanumericUppercase);
+    let live = ["w", "d", "j", "b", "m", "j", "h", "t"];
+    let plan = simulate_actions(
+        &mut pin,
+        paste_dispatches(0, "wdjb-mjht"),
+        &live,
+        ValueScope::All,
+    );
+    assert_eq!(pin.value(), "WDJBMJHT");
+    assert_eq!(plan.value_writes.len(), 8);
+}
+
+#[test]
+fn rejected_paste_leaves_state_and_writes_only_differing_digits() {
+    for bad in ["123456789", "12a4", "----", ""] {
+        let mut pin = PinInput::new(4, PinInputKind::Numeric);
+        let plan = simulate_actions(
+            &mut pin,
+            paste_dispatches(1, bad),
+            &["", "", "", ""],
+            ValueScope::All,
+        );
+        assert_eq!(pin.value(), "", "{bad:?}");
+        assert!(plan.value_writes.is_empty(), "{bad:?}");
+    }
+}
+
+#[test]
+fn classify_paste_text_enforces_the_char_limit_only() {
+    let at_limit = "9".repeat(MAX_PASTE_CHARS);
+    assert_eq!(classify_paste_text(&at_limit), PasteText::Text(&at_limit));
+    assert_eq!(classify_paste_text(""), PasteText::Text(""));
+    let over = "9".repeat(MAX_PASTE_CHARS + 1);
+    assert_eq!(classify_paste_text(&over), PasteText::Oversized);
+    // 文字数で数える（バイト数ではない）。
+    let multibyte = "あ".repeat(MAX_PASTE_CHARS);
+    assert_eq!(classify_paste_text(&multibyte), PasteText::Text(&multibyte));
+    assert_eq!(
+        classify_paste_text(&"あ".repeat(MAX_PASTE_CHARS + 1)),
+        PasteText::Oversized
+    );
+    assert_eq!(
+        classify_paste_text(&"9".repeat(1_000_000)),
+        PasteText::Oversized
+    );
+}
+
+#[test]
+fn deletion_dispatches_choose_backspace_only_for_backward_input_types() {
+    for backward in [
+        "deleteContentBackward",
+        "deleteWordBackward",
+        "deleteSoftLineBackward",
+        "deleteHardLineBackward",
+    ] {
+        let [_, body] = deletion_dispatches(2, Some(backward));
+        assert_eq!(body.action, "backspace", "{backward}");
+    }
+    for other in [
+        Some("deleteContentForward"),
+        Some("deleteByCut"),
+        Some("historyUndo"),
+        Some(""),
+        None,
+    ] {
+        let [focus, body] = deletion_dispatches(2, other);
+        assert_eq!(body.action, "delete", "{other:?}");
+        assert_eq!(focus.payload, "2");
+    }
+}
+
+#[test]
+fn autofill_multi_char_value_fills_all_digits_via_paste() {
+    let mut pin = PinInput::new(6, PinInputKind::Numeric);
+    // 桁 0 の input.value が autofill で "123456" になった（ライブ値）。他の桁は空。
+    let plan = simulate_actions(
+        &mut pin,
+        paste_dispatches(0, "123456"),
+        &["123456", "", "", "", "", ""],
+        ValueScope::All,
+    );
+    assert_eq!(pin.value(), "123456");
+    assert_eq!(plan.value_writes.len(), 6);
+    assert_eq!(plan.value_writes[0], (0, "1".to_string()));
+}
+
+#[test]
+fn reflect_plan_scoped_scopes_and_legacy_form_agree() {
+    let snapshot = PinInputSnapshot {
+        focused: Some(1),
+        digits: vec!["1".into(), String::new(), "3".into()],
+    };
+    let live: Vec<String> = vec!["x".into(), "y".into(), "3".into()];
+    assert!(
+        reflect_plan_scoped(Some(&snapshot), &live, ValueScope::None, None)
+            .value_writes
+            .is_empty()
+    );
+    assert_eq!(
+        reflect_plan_scoped(Some(&snapshot), &live, ValueScope::One(1), None).value_writes,
+        vec![(1, String::new())]
+    );
+    assert_eq!(
+        reflect_plan_scoped(Some(&snapshot), &live, ValueScope::All, None).value_writes,
+        vec![(0, "1".to_string()), (1, String::new())]
+    );
+    assert_eq!(
+        reflect_plan(Some(&snapshot), &live, Some(0), None),
+        reflect_plan_scoped(Some(&snapshot), &live, ValueScope::One(0), None)
+    );
+    assert_eq!(
+        reflect_plan(Some(&snapshot), &live, None, None),
+        reflect_plan_scoped(Some(&snapshot), &live, ValueScope::None, None)
+    );
 }

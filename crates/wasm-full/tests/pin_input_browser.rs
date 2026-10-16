@@ -1,6 +1,8 @@
-//! `fandhe_frontend_wasm_full::Runtime::mount`/`hydrate` が PinInput の `input` / `focusin`
-//! を配線することを確認する実ブラウザ統合テスト（`wasm-pack test --headless --chrome`、
-//! イシュー #3834、PR #3855 レビュー指摘 1〜11 の回帰固定）。
+//! `fandhe_frontend_wasm_full::Runtime::mount`/`hydrate` が PinInput の `input` / `focusin` /
+//! `keydown` / `paste` / `compositionend` を配線することを確認する実ブラウザ統合テスト
+//! （`wasm-pack test --headless --chrome`、イシュー #3834・#3835、PR #3855 レビュー指摘 1〜11 の回帰固定。
+//! paste・keydown・IME の網羅的な実ブラウザ検証は #3836 の担当で、本ファイルには #3835 の仕様変更で
+//! 期待値が変わったテストの書き換えと keydown の最小スモークだけを置く）。
 //!
 //! 検証する不変条件: 入力の受理・拒否と `focused` の位置は状態機械（`PinInput`）だけが決め、
 //! DOM 層は dispatch 後の状態（`BindingSource` の予約 field 経由）を読み戻して値とフォーカスを
@@ -24,7 +26,9 @@ use fandhe_frontend_wasm_full::pin_input::{bound_value_for, parse_field};
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit, HtmlInputElement};
+use web_sys::{
+    Document, Element, Event, EventInit, HtmlInputElement, KeyboardEvent, KeyboardEventInit,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -48,6 +52,8 @@ struct TestPinHost {
     readback: bool,
     /// 配線 root 自身が PinInput Root（view は Control だけを返す）。
     self_root: bool,
+    /// アプリ所有の `TypeAt` を受けた回数（二重 dispatch の検知用）。
+    type_calls: usize,
 }
 
 impl TestPinHost {
@@ -59,6 +65,7 @@ impl TestPinHost {
             rerender: false,
             readback: true,
             self_root: false,
+            type_calls: 0,
         }
     }
 }
@@ -70,6 +77,7 @@ impl Component for TestPinHost {
         match action {
             HostAction::Pin(a) => self.pin.update(a),
             HostAction::TypeAt(i, c) => {
+                self.type_calls += 1;
                 self.pin.update(PinInputAction::Focus(i));
                 self.pin.update(PinInputAction::Input(c));
             }
@@ -145,6 +153,7 @@ impl Hydrate for TestPinHost {
             rerender: false,
             readback: true,
             self_root: false,
+            type_calls: 0,
         })
     }
 }
@@ -240,9 +249,10 @@ fn accepted_input_advances_focus_to_state_focused() {
     assert_eq!(digit(&root, 0).value(), "5");
 }
 
-/// ネイティブ削除（Empty）した桁は、別の桁の入力で状態から復活しない（値の書き込みは入力のあった桁だけ）。
+/// ネイティブ削除（Empty、`inputType` 不明のため `delete`）した桁は状態でも空になり、別の桁の入力で
+/// 復活しない（値の書き込みは入力のあった桁だけ。#3835 で削除が状態へ届くようになった）。
 #[wasm_bindgen_test]
-fn natively_cleared_digit_is_not_resurrected_by_another_digits_input() {
+fn deleted_digit_is_not_resurrected_by_another_digits_input() {
     let (runtime, root, _g) = mount(
         "pin-it-noresurrect",
         TestPinHost::new(4, PinInputKind::Numeric),
@@ -252,7 +262,7 @@ fn natively_cleared_digit_is_not_resurrected_by_another_digits_input() {
     type_into(&root, 2, "3");
     type_into(&root, 2, "");
     type_into(&root, 0, "5");
-    assert_eq!(runtime.component().pin.digit(2), "3");
+    assert_eq!(runtime.component().pin.digit(2), "");
     assert_eq!(digit(&root, 0).value(), "5");
     assert_eq!(digit(&root, 2).value(), "");
 }
@@ -326,15 +336,41 @@ fn unreadable_host_leaves_dom_focus_and_value_untouched() {
     assert_eq!(digit(&root, 0).value(), "5");
 }
 
-/// 0 文字・2 文字以上は #3835 の担当のため何も dispatch せず DOM の値も変えない。
+/// 2 文字以上は `paste`（autofill・`insertFromPaste`）として全桁へ分配され、0 文字（`inputType` 不明の
+/// 合成 `Event`）は `delete` として状態の桁も空になる（#3835 で接続。#3834 では何も dispatch しなかった）。
 #[wasm_bindgen_test]
-fn empty_and_multi_char_values_are_left_alone() {
+fn empty_and_multi_char_values_reach_state_machine() {
     let (runtime, root, _g) = mount("pin-it-multi", TestPinHost::new(4, PinInputKind::Numeric));
     type_into(&root, 0, "12");
-    assert_eq!(runtime.component().pin.value(), "");
-    assert_eq!(digit(&root, 0).value(), "12");
+    assert_eq!(runtime.component().pin.value(), "12");
+    assert_eq!(digit(&root, 0).value(), "1");
+    assert_eq!(digit(&root, 1).value(), "2");
     type_into(&root, 1, "");
-    assert_eq!(runtime.component().pin.value(), "");
+    assert_eq!(runtime.component().pin.digit(1), "");
+    assert_eq!(digit(&root, 1).value(), "");
+}
+
+/// keydown の Backspace は `preventDefault` し、現在桁を消して前の桁へフォーカスを戻す（スモーク）。
+#[wasm_bindgen_test]
+fn backspace_keydown_clears_digit_moves_focus_and_prevents_default() {
+    let (runtime, root, _g) = mount("pin-it-bs", TestPinHost::new(4, PinInputKind::Numeric));
+    type_into(&root, 0, "1");
+    type_into(&root, 1, "2");
+    let target = digit(&root, 1);
+    target.focus().expect("focus must not fail");
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("Backspace");
+    let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail");
+    target
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+    assert!(event.default_prevented());
+    assert_eq!(runtime.component().pin.digit(1), "");
+    assert_eq!(digit(&root, 1).value(), "");
+    assert_eq!(active_digit(&root).as_deref(), Some("0"));
 }
 
 /// 指摘 3: 配線 root 自身が PinInput Root でも入力とフォーカス移動が成立する。
@@ -435,4 +471,175 @@ fn runtime_hydrate_csr_fallback_wires_pin_input() {
     type_into(&placeholder, 0, "5");
     assert_eq!(runtime.component().pin.digit(0), "5");
     assert_eq!(active_digit(&placeholder).as_deref(), Some("1"));
+}
+/// 入れ子の配線 root を手組みの DOM に 2 重で配線し、各配線の dispatch 回数を数える。
+/// 戻り値は (外側 root, 内側の桁 input, 外側の回数, 内側の回数, 除去ガード)。
+type Counter = std::rc::Rc<std::cell::Cell<usize>>;
+
+fn nested_wired(id: &str) -> (Element, HtmlInputElement, Counter, Counter, RemoveOnDrop) {
+    let outer = create_placeholder(id);
+    let guard = RemoveOnDrop(outer.clone());
+    outer.set_inner_html(
+        r#"<div data-scope="pin-input" data-part="root" id="inner-root"><input data-scope="pin-input" data-part="input" data-index="0"><input data-scope="pin-input" data-part="input" data-index="1"></div>"#,
+    );
+    let inner = outer
+        .query_selector("#inner-root")
+        .unwrap()
+        .expect("inner root must exist");
+    let outer_count: Counter = std::rc::Rc::new(std::cell::Cell::new(0));
+    let inner_count: Counter = std::rc::Rc::new(std::cell::Cell::new(0));
+    let oc = outer_count.clone();
+    let ic = inner_count.clone();
+    fandhe_frontend_wasm_full::pin_input::wire_pin_input_events(
+        inner,
+        move |_| {
+            ic.set(ic.get() + 1);
+            true
+        },
+        |_| None,
+    )
+    .expect("inner wiring must not fail");
+    fandhe_frontend_wasm_full::pin_input::wire_pin_input_events(
+        outer.clone(),
+        move |_| {
+            oc.set(oc.get() + 1);
+            true
+        },
+        |_| None,
+    )
+    .expect("outer wiring must not fail");
+    let target = digit(&outer, 0);
+    (outer, target, outer_count, inner_count, guard)
+}
+
+/// PR #3856 指摘: 入れ子の配線 root で keydown が最内の配線だけに処理される。
+#[wasm_bindgen_test]
+fn nested_roots_handle_keydown_only_in_the_innermost_wiring() {
+    let (_outer, target, outer_count, inner_count, _g) = nested_wired("pin-it-nested-key");
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("Backspace");
+    let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail");
+    target
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+    assert!(inner_count.get() > 0);
+    assert_eq!(outer_count.get(), 0);
+}
+
+/// 指摘: 変換の取り消し（`data` が空）で既存の数字が復元されても dispatch しない。
+/// 確定（`data` あり）は dispatch し、入れ子でも最内だけが処理する。
+#[wasm_bindgen_test]
+fn compositionend_cancel_with_restored_digit_dispatches_nothing() {
+    let (_outer, target, outer_count, inner_count, _g) = nested_wired("pin-it-comp-cancel");
+    target.set_value("5");
+    let cancel = bubbling_event("compositionend");
+    js_sys::Reflect::set(cancel.as_ref(), &"data".into(), &"".into()).unwrap();
+    target.dispatch_event(&cancel).unwrap();
+    assert_eq!(inner_count.get(), 0);
+    assert_eq!(outer_count.get(), 0);
+
+    let confirm = bubbling_event("compositionend");
+    js_sys::Reflect::set(confirm.as_ref(), &"data".into(), &"5".into()).unwrap();
+    target.dispatch_event(&confirm).unwrap();
+    assert!(inner_count.get() > 0);
+    assert_eq!(outer_count.get(), 0);
+}
+
+/// PR #3856 指摘（P1）: 確定後の追加 `input`（Safari 系）の抑止判定は、入れ子の配線 root でも
+/// 外側・内側の双方の capture で維持され、内側の bubble で二重 dispatch されない。
+#[wasm_bindgen_test]
+fn nested_roots_suppress_post_composition_input_in_all_listeners() {
+    let (_outer, target, outer_count, inner_count, _g) = nested_wired("pin-it-nested-ime");
+    target.set_value("5");
+    let confirm = bubbling_event("compositionend");
+    js_sys::Reflect::set(confirm.as_ref(), &"data".into(), &"5".into()).unwrap();
+    target.dispatch_event(&confirm).unwrap();
+    let after_confirm = inner_count.get();
+    assert!(after_confirm > 0);
+
+    let init = web_sys::InputEventInit::new();
+    init.set_bubbles(true);
+    let extra = web_sys::InputEvent::new_with_event_init_dict("input", &init).unwrap();
+    // 合成イベントの `inputType` は初期化辞書では反映されない環境があるため、インスタンスへ直接定義する。
+    let desc = js_sys::Object::new();
+    js_sys::Reflect::set(&desc, &"value".into(), &"insertFromComposition".into()).unwrap();
+    js_sys::Object::define_property(extra.as_ref(), &"inputType".into(), &desc);
+    target.dispatch_event(&extra).unwrap();
+    assert_eq!(
+        inner_count.get(),
+        after_confirm,
+        "内側でも二重 dispatch しない"
+    );
+    assert_eq!(outer_count.get(), 0);
+}
+
+/// キャンセル可能なイベントを `target` へ送り、先行リスナー（target 上）が `preventDefault` する。
+fn dispatch_pre_cancelled(target: &HtmlInputElement, event: &Event) {
+    let cb = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(|e: Event| {
+        e.prevent_default();
+    });
+    target
+        .add_event_listener_with_callback(&event.type_(), cb.as_ref().unchecked_ref())
+        .unwrap();
+    target.dispatch_event(event).unwrap();
+    target
+        .remove_event_listener_with_callback(&event.type_(), cb.as_ref().unchecked_ref())
+        .unwrap();
+}
+
+/// PR #3856 指摘（P1）: 先行リスナーが `preventDefault` 済みの keydown / paste は処理しない。
+#[wasm_bindgen_test]
+fn pre_cancelled_keydown_and_paste_are_ignored() {
+    let (runtime, root, _g) = mount(
+        "pin-it-cancelled",
+        TestPinHost::new(4, PinInputKind::Numeric),
+    );
+    type_into(&root, 0, "1");
+    type_into(&root, 1, "2");
+    let target = digit(&root, 1);
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("Backspace");
+    let key = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+    dispatch_pre_cancelled(&target, &key);
+    assert_eq!(runtime.component().pin.digit(1), "2");
+
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    let paste = Event::new_with_event_init_dict("paste", &init).unwrap();
+    dispatch_pre_cancelled(&digit(&root, 1), &paste);
+    assert_eq!(runtime.component().pin.value(), "12");
+}
+
+/// PR #3856 指摘（P1）: `data-action-input` 桁で `compositionend` の小文字が大文字へ正規化されても、
+/// 直後の追加 `input` で同じ確定操作を再 dispatch しない（アプリへ 1 回だけ届く）。
+#[wasm_bindgen_test]
+fn app_owned_ime_confirm_normalized_to_uppercase_dispatches_once() {
+    let mut host = TestPinHost::new(4, PinInputKind::AlphanumericUppercase);
+    host.custom_action = true;
+    let (runtime, root, _g) = mount("pin-it-ime-upper", host);
+    let target = digit(&root, 0);
+    target.focus().unwrap();
+    let target = digit(&root, 0);
+    target.set_value("a");
+    let confirm = bubbling_event("compositionend");
+    js_sys::Reflect::set(confirm.as_ref(), &"data".into(), &"a".into()).unwrap();
+    target.dispatch_event(&confirm).unwrap();
+    let target = digit(&root, 0);
+    assert_eq!(runtime.component().type_calls, 1);
+    assert_eq!(target.value(), "A");
+
+    let init = web_sys::InputEventInit::new();
+    init.set_bubbles(true);
+    let extra = web_sys::InputEvent::new_with_event_init_dict("input", &init).unwrap();
+    let desc = js_sys::Object::new();
+    js_sys::Reflect::set(&desc, &"value".into(), &"insertFromComposition".into()).unwrap();
+    js_sys::Object::define_property(extra.as_ref(), &"inputType".into(), &desc);
+    target.dispatch_event(&extra).unwrap();
+    assert_eq!(runtime.component().type_calls, 1, "二重 dispatch しない");
 }

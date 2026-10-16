@@ -3018,7 +3018,8 @@ where
     /// `Self::wire_number_input` の直後に 1 回だけ呼ばれる。
     ///
     /// DOM 反映は `Self::apply_dirty_if_any`（`Self::wire_number_input` と同じ
-    /// 経路）に委ね、新しい反映経路を増やさない。貼り付け・keydown は #3835 の担当。
+    /// 経路）に委ね、新しい反映経路を増やさない。貼り付け・keydown・IME 確定入力も同じ配線が
+    /// 担う（イシュー #3835、対応表は [`pin_input`] のモジュール doc）。
     /// 入力の受理・拒否と `focused` は状態機械だけが決め、dispatch 後の状態（各桁の値と
     /// `focused`）を `C` の `BindingSource::bound_value`（予約 field、
     /// [`pin_input::parse_field`]/[`pin_input::bound_value_for`]）から読み戻して DOM へ

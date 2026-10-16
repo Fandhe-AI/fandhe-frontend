@@ -3316,7 +3316,8 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 ## 42. `pin_input` モジュール（イシュー #3834、親 #3831）
 
 `crates/wasm-full/src/pin_input.rs` は PinInput（`fandhe-frontend-headless-ui`
-`pin_input`）の桁 input への 1 文字入力と、状態機械が決めた桁へのフォーカス移動を配線する。
+`pin_input`）の桁 input への入力・貼り付け・キー操作・IME 確定入力と、状態機械が決めた桁への
+フォーカス移動を配線する（#3834・#3835）。
 配線群別 feature `pin-input`（既定 on）でモジュールごと cfg ゲートし、off では
 配線コードをビルドに含めない。dist-server の `WASM_DIST_FEATURES` には含めない（REQ-11）。
 
@@ -3337,14 +3338,18 @@ kind の解決・文字種の事前判定・大文字そろえ・ライブ `valu
 
 純粋ロジック層（桁番号パース・入力値の分類・dispatch 列・予約 field の名前解釈・状態スナップショット・
 DOM 反映計画 `reflect_plan`）は native テスト対象、配線層のみ `#[cfg(target_arch = "wasm32")]`。
-リスナーは `input`（capture）・`input`（bubble）・`focusin` の 3 個で固定する。
+リスナーは `input`（capture）・`input`（bubble）・`focusin`・`keydown`・`paste`・`compositionend` の
+6 個で固定する。
 
-- `input`（capture）: 入力された桁の場所（Root の文書順・`data-index`）と 1 文字を記録するだけ。判断はしない。
+- `input`（capture）: 入力された桁の場所（Root の文書順・`data-index`）と値の分類（1 文字・2 文字以上・
+  0 文字）を記録するだけ。判断はしない。
 - `input`（bubble）: `Runtime::mount`/`hydrate` は `wire_events` より後にこの配線を登録するため、
   同一イベントで `wire_events` の後に実行される。所有者（`data-action-input`）がいなければ
-  `"focus"` → `"input"` を無加工の文字で dispatch する（1 打鍵で `on_update` が 2 回走る）。
-  その後、状態を読み戻して反映する。値の書き込みは `input` のあった桁 1 つだけ（ネイティブ削除済みの
-  別の桁を復活させない）、フォーカスは状態の `focused` へ置く。
+  分類に応じて `"focus"` → 本体アクション（1 文字は `input`、2 文字以上は `paste`、0 文字は
+  `backspace`/`delete`）を無加工で dispatch する（`on_update` が 2 回走る）。その後、状態を読み戻して
+  反映する。値の書き込みは 1 文字・0 文字では `input` のあった桁 1 つだけ（ネイティブ削除済みの別の桁を
+  復活させない）、`paste` は状態機械が全桁を置き換えるため全桁（状態と異なる桁のみ）、フォーカスは状態の
+  `focused` へ置く。
 - `focusin`: 所有者がいなければ `"focus"` を dispatch し、フォーカスだけを状態の `focused`
   （読めなければ選ばれた桁）へ置く（再描画による要素差し替えからの復元）。
 
@@ -3370,16 +3375,29 @@ JS から直接読まない・送信値は `hidden_input` を使う・`pin-input
 桁の選択（クリック・Tab）の同期も担う。汎用経路は 1 配線 root につき PinInput 1 つが前提。
 配線は 1 root につき 1 回で、入れ子の配線 root では `PENDING`（1 スロット）のため内側だけが反映する。
 
-### 42.2c 本モジュールが触れない入力
+### 42.2c keydown・paste・IME（#3835）
 
-0 文字（ネイティブ Backspace/Delete）・2 文字以上（貼り付け・autofill）・IME 確定入力は、状態にも DOM の値にも
-触れない（#3835）。IME は Chrome/Firefox で `isComposing=true` の最後の `input` の後に `compositionend` が来て
-その後 `input` が来ないため、確定文字は状態へ渡らず DOM に残る。`events::wire_events` の `compositionend`
-補完（#2069）は `data-action-input` 経路用で汎用経路には効かない。
+| DOM イベント | dispatch 列 | `preventDefault` |
+|---|---|---|
+| `keydown` Backspace/Delete | `focus` → `backspace`/`delete` | する |
+| `keydown` ArrowLeft/ArrowRight | `focus` → `prev`/`next` | する |
+| `paste`（`clipboardData` の `text/plain`、上限以内） | `focus` → `paste`（無加工） | する |
+| `input` 2 文字以上 / 0 文字 | `focus` → `paste` / `backspace`・`delete` | しない（イベント後） |
+| `compositionend` | 確定値 1 文字は `input`、2 文字以上は `paste`、0 文字は何もしない | しない |
+
+- 修飾キー付き・変換中（`isComposing`・keyCode 229）の keydown は dispatch も `preventDefault` もしない。
+  0 文字 `input` の `inputType` が後方削除系（`deleteContentBackward` 等 4 種）なら `backspace`、それ以外・不明は
+  `delete` にそろえる。状態機械の `Paste` は発生桁に関わらず先頭から充填し、DOM 層は補正しない。
+- 汎用 keydown 配線（`events::wire_keydown`）との排他は、処理した 4 キーへの `preventDefault` で成立する
+  （本配線は `wire_keydown` より先に登録され、`wire_keydown` は `default_prevented()` で何もしない）。
+  `keydown_claim`（#3768 方式 2b）には登録しない（あれは root の bubble より後の document/window の部品向け）。
+- `data-action-input` を持つ桁では keydown・paste・`compositionend` も dispatch・`preventDefault` しない。
+- Safari 系の確定後の追加 `input`（`insertFromComposition` 等）は、`compositionend` を処理した桁への直後の
+  1 回だけ無視する（次の `input`・`keydown` で記録を破棄）。`compositionstart` は購読しない。
+- 貼り付け候補と 2 文字以上の値は 256 文字（`MAX_PASTE_CHARS`）で打ち切り判定し、超過は dispatch しない
+  （資源上限であって値の検証ではない。区切り除去・大文字そろえは状態機械、値の正しさはアプリの責務、§3.25）。
 
 ### 42.3 スコープ外
 
-- 貼り付け・Backspace/Delete/矢印キー・autofill（2 文字以上の `input`）: #3835
-- 実ブラウザでの入力・フォーカス移動・大文字表示の固定: #3836
+- 実ブラウザでの貼り付け・keydown・IME・大文字表示の網羅的な検証: #3836
 - 同一 root 内の複数 PinInput の区別（汎用経路は 1 root : 1 状態機械。複数は `data-action-input` + ordinal 別の `bound_value`）
-- IME（`compositionstart`/`compositionend`）中の入力・確定入力の扱い: #3835
