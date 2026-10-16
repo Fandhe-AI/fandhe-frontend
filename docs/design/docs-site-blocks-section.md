@@ -1067,6 +1067,7 @@ pub enum LayoutCss {
 | auth-otp-verify | #2964（親 #2951） | `application/auth/auth_otp_verify.rs` |
 | auth-passkey-manage | #3826（親 #3824） | `application/auth/auth_passkey_manage.rs` |
 | auth-passkey-sign-in | #3825（親 #3824） | `application/auth/auth_passkey_sign_in.rs` |
+| auth-recovery-code-input | #3828（親 #3824） | `application/auth/auth_recovery_code_input.rs` |
 | auth-recovery-codes | #3827（親 #3824） | `application/auth/auth_recovery_codes.rs` |
 | auth-split-accent-panel | #2965 | `application/auth/auth_split_accent_panel.rs` |
 | auth-split-photo-testimonial | #2966 | `application/auth/auth_split_photo_testimonial.rs` |

@@ -2300,6 +2300,11 @@ source = "site/blocks/auth-passkey-sign-in.md"
 path = "/blocks/auth-passkey-sign-in/"
 
 [[section.group.page]]
+title = "auth-recovery-code-input"
+source = "site/blocks/auth-recovery-code-input.md"
+path = "/blocks/auth-recovery-code-input/"
+
+[[section.group.page]]
 title = "auth-recovery-codes"
 source = "site/blocks/auth-recovery-codes.md"
 path = "/blocks/auth-recovery-codes/"
