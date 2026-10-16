@@ -339,6 +339,7 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `menubar` | `trigger` | `"toggle"` | `data-value` |
 | `sidebar` | `trigger` | `"toggle"` | `""` |
 | `sidebar` | `rail` | `"toggle"` | `""` |
+| `pin-input` | `input` | `"focus"` | `data-value`（境界行、§42） |
 
 **`questionnaire` の back/next/skip は本表に登録しない（イシュー #2118、
 §27 参照）**: `"next"`/`"prev"` は carousel / steps / pagination / tour /
@@ -3311,3 +3312,37 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 - 検証: `keydown_claim.rs`・`overlay.rs`・`sidebar.rs`・`command.rs` の native テストと、
   `action_keydown_browser.rs` の排他ケース（部品のみ発火・汎用のみ発火の双方）。
 
+
+## 42. `pin_input` モジュール（イシュー #3834、親 #3831）
+
+`crates/wasm-full/src/pin_input.rs` は PinInput（`fandhe-frontend-headless-ui`
+`pin_input`）の桁 input への 1 文字入力と次桁へのフォーカス移動を配線する。
+配線群別 feature `pin-input`（既定 on）でモジュールごと cfg ゲートし、off では
+配線コードをビルドに含めない。dist-server の `WASM_DIST_FEATURES` には含めない（REQ-11）。
+
+### 42.1 `MAPPING_TABLE` 行は境界行
+
+桁 input は `data-index` を出すが `data-value` を出さないため、
+`(pin-input, input) → "focus"`（`requires_value: true`）は現行マークアップでは常に
+`None`（fail-closed）となる。行の役割は `is_known_mapping_target` を成立させ、
+`tree-view/branch` 等の内側に置いた PinInput の桁クリックが祖先の部品へ解決されない
+よう祖先探索を止めること。解決が成立しないので `stop_propagation` も走らない。
+桁番号の同期は `focusin` リスナーが担う。
+
+### 42.2 2 層構成と DOM 同期契約
+
+`number_input` と同型で、純粋ロジック層（桁番号パース・入力値分類・kind 解決・事前
+フィルタ・フォーカス移動先・dispatch 列）は native テスト対象、配線層のみ
+`#[cfg(target_arch = "wasm32")]`。リスナーは `input` と `focusin` の 2 個で固定。
+`input` は IME 変換中・0 文字・2 文字以上を何もしない（2 文字以上は #3835 の paste 配線へ
+残す）。1 文字は `"focus"` → `"input"` を dispatch し、成功後に次桁へ DOM フォーカスを移す。
+DOM の直接書き込みは大文字そろえ kind の表示補正と、kind 不適合文字の値クリア
+（`set_value` のみ）に限る。dispatch 後に要素が差し替わりうるため、順序と `data-index`
+から引き直す。`data-action-input` を持つ桁では `events::wire_events` が dispatch を担い、
+本モジュールはフォーカス移動だけを行う。
+
+### 42.3 スコープ外
+
+- 貼り付け・Backspace/Delete/矢印キー・autofill（2 文字以上の `input`）: #3835
+- 実ブラウザでの入力・フォーカス移動・大文字表示の固定: #3836
+- 同一 root 内の複数 PinInput の区別（payload にインスタンス ID が無い。1 root : 1 状態機械の簡略化）

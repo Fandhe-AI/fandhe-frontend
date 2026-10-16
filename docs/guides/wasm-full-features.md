@@ -1,9 +1,9 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 32 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 33 件・
 scope 別 16 件、いずれも既定 on。このほか別枠 9 件も既定 on で、既定の
-合計は 57 件）と、`fandhe-frontend-dist-server`
+合計は 58 件）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
 クレート doc・`crates/wasm-full/Cargo.toml` の `[features]` 直前コメント
@@ -55,6 +55,7 @@ scope 別 16 件、いずれも既定 on。このほか別枠 9 件も既定 on 
 | `Runtime::wire_splitter` | `splitter` |
 | `Runtime::wire_signature_pad` | `signature-pad` |
 | `Runtime::wire_number_input` | `number-input` |
+| `Runtime::wire_pin_input` | `pin-input` |
 | `Runtime::wire_command` | `command` |
 | `Runtime::wire_sidebar` | `sidebar` |
 | `Runtime::wire_chart` | `chart` |
@@ -368,7 +369,7 @@ feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
 | `tree-view` | 2 | `"tree-view"`・tree 復元 |
 
 配線群別 feature である `sidebar`（MAPPING_TABLE 2 行）・`signature-pad`
-（同 1 行）も、それぞれ同名 feature で MAPPING_TABLE 行を追加ゲートします
+（同 1 行）・`pin-input`（同 1 行、境界行）も、それぞれ同名 feature で MAPPING_TABLE 行を追加ゲートします
 （上表とは別枠）。
 
 readonly RadioGroup の click capture 保護（`keynav::wire_readonly_click_guard`）
@@ -445,12 +446,12 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 57 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 58 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.46.0"
+version = "0.47.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -463,6 +464,7 @@ features = [
   "splitter",
   "signature-pad",
   "number-input",
+  "pin-input",
   "command",
   "sidebar",
   "chart",
@@ -554,7 +556,7 @@ wasm-bindgen-exports, collapsible, dialog, popover, tooltip, position, action-ke
   増分が小さく上限余裕を十分に残すため含めます（イシュー #3765、
   `wasm-full-architecture.md` §41.4）。
 - `action-keydown` 以外の配線群別 feature（avatar / clipboard / timer / angle-slider / splitter /
-  signature-pad / number-input / command / sidebar / chart / chart-range /
+  signature-pad / number-input / pin-input / command / sidebar / chart / chart-range /
   questionnaire / message-scroller / data-table / in-view / gesture）は対象外です。
 
 実測（ローカル、wasm-opt 適用済み）: `bundle-size: total_gzip_bytes=124556/200000

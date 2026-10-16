@@ -1,4 +1,6 @@
 [package]
+# イシュー #3834: pin-input 配線（`pin_input` モジュールと `Runtime::wire_pin_input`、既定 on の
+# feature `pin-input`）の新規公開 API 追加に伴う minor バンプ（0.46.4 から 0.47.0）。
 # イシュー #3833: headless-ui 0.72.0 依存追随に伴う patch バンプ（0.46.3 から 0.46.4）。
 name = "fandhe-frontend-wasm-full"
 # イシュー #2187: 依存先 `fandhe-frontend-headless-ui` 0.68.9 → 0.68.10
@@ -1413,7 +1415,7 @@ name = "fandhe-frontend-wasm-full"
 # （これまで両方発火していた組み合わせが部品優先の片方のみになる 0.x の破壊的変更のため minor バンプ 0.45.0 → 0.46.0）。
 # イシュー #3816: 依存先 headless-ui 0.70.0 への version 要求追随のみ（wasm-full は headless-ui の型を再エクスポートしないため patch）。
 # イシュー #3832: headless-ui の依存要求追随（pin_input の paste 挙動変更）のため patch バンプする。
-version = "0.46.4"
+version = "0.47.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -1876,6 +1878,7 @@ crate-type = ["cdylib", "rlib"]
 #   Self::wire_splitter            -> "splitter"
 #   Self::wire_signature_pad       -> "signature-pad"
 #   Self::wire_number_input        -> "number-input"
+#   Self::wire_pin_input           -> "pin-input"
 #   Self::wire_command             -> "command"
 #   Self::wire_sidebar             -> "sidebar"
 #   Self::wire_chart               -> "chart"
@@ -1990,6 +1993,7 @@ default = [
   "splitter",
   "signature-pad",
   "number-input",
+  "pin-input",
   "command",
   "sidebar",
   "chart",
@@ -2050,6 +2054,10 @@ angle-slider = []
 splitter = []
 signature-pad = []
 number-input = []
+# イシュー #3834（親 #3831）: pin-input の入力・フォーカス移動配線（`pin_input` モジュールと
+# `Runtime::wire_pin_input`）と `MAPPING_TABLE` の境界行専用の feature（既定 on）。
+# モジュール自体を cfg ゲートし、off では配線コードをビルドに含めない。
+pin-input = []
 command = []
 sidebar = []
 chart = []

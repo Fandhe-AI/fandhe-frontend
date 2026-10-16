@@ -488,6 +488,20 @@ const MAPPING_TABLE: &[MappingRow] = &[
         requires_value: false,
         enabled: cfg!(feature = "sidebar"),
     },
+    // PinInput（イシュー #3834、`crates/headless-ui/src/pin_input.rs`）の境界行:
+    // 桁 input は `data-index` を出すが `data-value` を出さないため、現行マークアップでは
+    // `requires_value: true` により常に `None`（fail-closed）になる。行の役割は
+    // `is_known_mapping_target` を成立させ、`tree-view/branch` 等の内側に置いた
+    // PinInput の桁クリックが祖先の部品へ解決されないよう祖先探索を止めること。
+    // 桁番号の同期は `crate::pin_input` の `focusin` リスナーが担う。呼び出し側が
+    // `data-value` を `attrs` で明示した場合に限り `"focus"` へ解決される。
+    MappingRow {
+        scope: "pin-input",
+        part: "input",
+        action: "focus",
+        requires_value: true,
+        enabled: cfg!(feature = "pin-input"),
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す
