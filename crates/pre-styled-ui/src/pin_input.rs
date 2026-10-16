@@ -154,7 +154,7 @@
 //!     設計判断（上記）の裏返しとして、このラッパーは呼び出し側の責務と
 //!     なる。
 //!   - `pattern`（数字のみ/英数字の入力種別）は headless 層の
-//!     [`PinInputKind`]（`Numeric`/`Alphanumeric`/`Alphabetic`）で既に
+//!     [`PinInputKind`]（`Numeric`/`Alphanumeric`/`Alphabetic`/`AlphanumericUppercase`/`AlphabeticUppercase`）で既に
 //!     実装済みであり、見た目に影響しないため Themes 層の変更は不要。
 //!   - `controlled` の使用例は React 特有の状態管理パターンであり、本
 //!     リポジトリでは `fandhe_frontend_headless_ui::pin_input::PinInput`
