@@ -1071,6 +1071,7 @@ pub enum LayoutCss {
 | auth-split-accent-panel | #2965 | `application/auth/auth_split_accent_panel.rs` |
 | auth-split-photo-testimonial | #2966 | `application/auth/auth_split_photo_testimonial.rs` |
 | auth-tabs-card | #2967 | `application/auth/auth_tabs_card.rs` |
+| auth-totp-enroll | #3830（親 #3824） | `application/auth/auth_totp_enroll.rs` |
 | command-palette-preview | #2968 | `application/command_palette/command_palette_preview.rs` |
 | empty-state-card-header | #2969 | `application/empty_state/empty_state_card_header.rs` |
 | empty-state-setup-steps | #2971（親 #2951） | `application/empty_state/empty_state_setup_steps.rs` |
