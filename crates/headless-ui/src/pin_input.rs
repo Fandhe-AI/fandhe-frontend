@@ -134,6 +134,7 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_invalid;
+use crate::autocomplete::{AutocompleteField, AutocompleteToken};
 use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -443,7 +444,10 @@ pub fn input<'a>(
         merged.push(("autocapitalize", v));
     }
     if otp {
-        merged.push(("autocomplete", "one-time-code"));
+        merged.push((
+            "autocomplete",
+            AutocompleteToken::new(AutocompleteField::OneTimeCode).as_str(),
+        ));
     }
     if props.disabled {
         // ネイティブ disabled 属性（switch/checkbox/radio_group/field と

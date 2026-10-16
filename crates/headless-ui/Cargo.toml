@@ -1,4 +1,5 @@
 [package]
+# イシュー #3859: AutocompleteField::OneTimeCode と AutocompleteToken::off()/is_off() を追加（公開 API 追加のため minor バンプ 0.72.0 から 0.73.0）。
 # イシュー #3833: pin_input に英字を大文字にそろえる kind（AlphanumericUppercase/AlphabeticUppercase）と autocapitalize 出力を追加（公開 enum へのバリアント追加のため minor バンプ 0.71.0 から 0.72.0）。
 name = "fandhe-frontend-headless-ui"
 # イシュー #2187: navigation-menu にルートレベルの indicator パーツ（`indicator()`
@@ -688,7 +689,7 @@ name = "fandhe-frontend-headless-ui"
 # 網羅 match の利用者に対し 0.x 破壊的変更のためマイナーバンプする。
 # イシュー #3832: pin_input の Paste が区切り文字（ハイフン・空白類）を除去してから
 # 桁へ分配するようになり、従来は拒否されていた入力が受理される挙動変更のためマイナーバンプする。
-version = "0.72.0"
+version = "0.73.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

@@ -13,7 +13,7 @@
 //! - 任意 `&str` を受ける公開コンストラクタ・`FromStr`・`From<&str>` を持たない。
 //! - 文字列連結・`format!` を使わず、[`AutocompleteToken::as_str`] は
 //!   リテラルの `match` のみで値を返す。
-//! - `webauthn` 単独・`off`/`on` との併用・先頭/中間への配置は型として表現できない。
+//! - `webauthn` 単独・`off`/`on` との併用（`off webauthn`）・`one-time-code webauthn`・先頭/中間への配置は型として表現できない。`off` は単独値としてのみ表せる（イシュー #3859）。
 //!
 //! # 呼び出し文脈
 //!
@@ -36,13 +36,25 @@ pub enum AutocompleteField {
     CurrentPassword,
     /// `new-password`。
     NewPassword,
+    /// `one-time-code`（ワンタイムコード欄。`webauthn` とは併用しない、イシュー #3859）。
+    OneTimeCode,
 }
 
-/// field 名 + 任意の `webauthn` トークンからなる `autocomplete` 値。
+/// トークンの内部表現。`off` は field 名ではなく autofill expectation name のため、
+/// field + webauthn の組とは別 variant にして `off webauthn` を型で表現不能にする。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Inner {
+    Off,
+    Field {
+        field: AutocompleteField,
+        webauthn: bool,
+    },
+}
+
+/// field 名 + 任意の `webauthn` トークン、または単独の `off` からなる `autocomplete` 値。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AutocompleteToken {
-    field: AutocompleteField,
-    webauthn: bool,
+    inner: Inner,
 }
 
 impl AutocompleteToken {
@@ -50,44 +62,79 @@ impl AutocompleteToken {
     #[must_use]
     pub const fn new(field: AutocompleteField) -> Self {
         Self {
-            field,
-            webauthn: false,
+            inner: Inner::Field {
+                field,
+                webauthn: false,
+            },
         }
+    }
+
+    /// 単独の `off`（autofill expectation name。`webauthn` 等の detail token とは併用不可）。
+    #[must_use]
+    pub const fn off() -> Self {
+        Self { inner: Inner::Off }
+    }
+
+    /// `off` かを返す。`off` のとき [`field`](Self::field) は意味を持たないため先に判定する。
+    #[must_use]
+    pub const fn is_off(self) -> bool {
+        matches!(self.inner, Inner::Off)
     }
 
     /// 末尾に `webauthn` を付けたトークンを返す。
+    ///
+    /// `off` と [`AutocompleteField::OneTimeCode`] では仕様上意味を持たず
+    /// 不正値（`off webauthn` 等）になるため無視（no-op）する。
     #[must_use]
     pub const fn with_webauthn(self) -> Self {
-        Self {
-            field: self.field,
-            webauthn: true,
+        match self.inner {
+            Inner::Field { field, .. } if !matches!(field, AutocompleteField::OneTimeCode) => {
+                Self {
+                    inner: Inner::Field {
+                        field,
+                        webauthn: true,
+                    },
+                }
+            }
+            _ => self,
         }
     }
 
-    /// field 名を返す。
+    /// field 名を返す。`off` のときは意味を持たない値（`Username`）を返すため、
+    /// 先に [`is_off`](Self::is_off) で判定すること。
     #[must_use]
     pub const fn field(self) -> AutocompleteField {
-        self.field
+        match self.inner {
+            Inner::Off => AutocompleteField::Username,
+            Inner::Field { field, .. } => field,
+        }
     }
 
-    /// `webauthn` が付いているかを返す。
+    /// `webauthn` が付いているかを返す（`off` では常に `false`）。
     #[must_use]
     pub const fn webauthn(self) -> bool {
-        self.webauthn
+        match self.inner {
+            Inner::Off => false,
+            Inner::Field { webauthn, .. } => webauthn,
+        }
     }
 
     /// `autocomplete` 属性値（全組み合わせの静的リテラル）。
     #[must_use]
     pub const fn as_str(self) -> &'static str {
-        match (self.field, self.webauthn) {
-            (AutocompleteField::Username, false) => "username",
-            (AutocompleteField::Username, true) => "username webauthn",
-            (AutocompleteField::Email, false) => "email",
-            (AutocompleteField::Email, true) => "email webauthn",
-            (AutocompleteField::CurrentPassword, false) => "current-password",
-            (AutocompleteField::CurrentPassword, true) => "current-password webauthn",
-            (AutocompleteField::NewPassword, false) => "new-password",
-            (AutocompleteField::NewPassword, true) => "new-password webauthn",
+        match self.inner {
+            Inner::Off => "off",
+            Inner::Field { field, webauthn } => match (field, webauthn) {
+                (AutocompleteField::Username, false) => "username",
+                (AutocompleteField::Username, true) => "username webauthn",
+                (AutocompleteField::Email, false) => "email",
+                (AutocompleteField::Email, true) => "email webauthn",
+                (AutocompleteField::CurrentPassword, false) => "current-password",
+                (AutocompleteField::CurrentPassword, true) => "current-password webauthn",
+                (AutocompleteField::NewPassword, false) => "new-password",
+                (AutocompleteField::NewPassword, true) => "new-password webauthn",
+                (AutocompleteField::OneTimeCode, _) => "one-time-code",
+            },
         }
     }
 }
@@ -96,11 +143,12 @@ impl AutocompleteToken {
 mod tests {
     use super::*;
 
-    const FIELDS: [AutocompleteField; 4] = [
+    const FIELDS: [AutocompleteField; 5] = [
         AutocompleteField::Username,
         AutocompleteField::Email,
         AutocompleteField::CurrentPassword,
         AutocompleteField::NewPassword,
+        AutocompleteField::OneTimeCode,
     ];
 
     #[test]
@@ -114,6 +162,8 @@ mod tests {
             "current-password webauthn",
             "new-password",
             "new-password webauthn",
+            "one-time-code",
+            "one-time-code",
         ];
         let mut got = Vec::new();
         for f in FIELDS {
@@ -122,6 +172,24 @@ mod tests {
             got.push(t.with_webauthn().as_str());
         }
         assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn off_is_standalone_and_ignores_webauthn() {
+        let off = AutocompleteToken::off();
+        assert!(off.is_off());
+        assert_eq!(off.as_str(), "off");
+        assert_eq!(off.with_webauthn().as_str(), "off");
+        assert!(!off.with_webauthn().webauthn());
+        assert!(!AutocompleteToken::new(AutocompleteField::Username).is_off());
+    }
+
+    #[test]
+    fn one_time_code_ignores_webauthn() {
+        let t = AutocompleteToken::new(AutocompleteField::OneTimeCode);
+        assert_eq!(t.with_webauthn(), t);
+        assert!(!t.with_webauthn().webauthn());
+        assert_eq!(t.field(), AutocompleteField::OneTimeCode);
     }
 
     #[test]
@@ -136,6 +204,7 @@ mod tests {
                 assert_ne!(toks[0], "webauthn");
                 assert_eq!(t.webauthn(), toks.get(1) == Some(&"webauthn"));
                 assert_eq!(t.field(), f);
+                assert!(!t.is_off());
             }
         }
     }
