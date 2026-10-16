@@ -127,3 +127,37 @@ fn typed_autocomplete_paths_escape_payloads_and_drop_untyped_autocomplete() {
         assert_eq!(html.matches("autocomplete=").count(), 1, "html={html}");
     }
 }
+
+#[test]
+fn typed_off_and_one_time_code_emit_single_attribute() {
+    for (token, expected) in [
+        (AutocompleteToken::off(), r#"autocomplete="off""#),
+        (
+            AutocompleteToken::new(AutocompleteField::OneTimeCode),
+            r#"autocomplete="one-time-code""#,
+        ),
+    ] {
+        let html = render(&input::input_with_autocomplete(
+            &InputProps::default(),
+            &field(),
+            token.with_webauthn(),
+            vec![("autocomplete", "evil")],
+        ));
+        assert!(html.contains(expected), "html={html}");
+        assert_eq!(html.matches("autocomplete=").count(), 1);
+        assert!(!html.contains("evil"));
+        assert!(!html.contains("webauthn"));
+    }
+}
+
+#[test]
+fn password_input_falls_back_for_off() {
+    let html = render(&password_input::input_with_autocomplete(
+        false,
+        &pw_props(),
+        AutocompleteToken::off(),
+        vec![],
+    ));
+    assert!(html.contains(r#"autocomplete="current-password""#));
+    assert_eq!(html.matches("autocomplete=").count(), 1);
+}

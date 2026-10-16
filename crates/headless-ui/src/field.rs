@@ -384,7 +384,7 @@ pub fn input<'a>(props: &FieldProps<'_>, extra_attrs: Vec<(&'a str, &'a str)>) -
 }
 
 /// [`input`] に固定語彙の [`AutocompleteToken`] で `autocomplete` を付ける版
-/// （`username webauthn` / `email` 等、イシュー #3816）。
+/// （`username webauthn` / `email` / `off` / `one-time-code` 等、イシュー #3816・#3859）。
 ///
 /// - `extra_attrs` 内の `autocomplete`（大文字小文字を区別しない）は除去され、
 ///   型付きの値が優先される。`autocomplete` 属性は常に 1 個だけ出力される。

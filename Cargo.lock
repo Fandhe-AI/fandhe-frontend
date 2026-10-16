@@ -127,7 +127,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-headless-ui"
-version = "0.72.0"
+version = "0.73.0"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-interactive",
@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-pre-styled-ui"
-version = "0.244.0"
+version = "0.245.0"
 dependencies = [
  "fandhe-animation",
  "fandhe-frontend-core",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.48.0"
+version = "0.48.1"
 dependencies = [
  "fandhe-frontend-animation",
  "fandhe-frontend-app",

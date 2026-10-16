@@ -413,6 +413,9 @@ pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &s
 /// - `type=password`/`type=text` の input に `username`/`email` は不適切なため、
 ///   password 系（`CurrentPassword`/`NewPassword`）以外の field 指定時は
 ///   `props.autocomplete` へフォールバックする（fail-safe、イシュー #3816）。
+///   `off` と `one-time-code`（イシュー #3859）も同様にフォールバックする。
+///   password 欄に `off` を型付き API で通すと、ブラウザ・パスワードマネージャの
+///   保護を意図せず外す設定になるため。
 /// - `new-password webauthn` は仕様上有効なため許容するが、通常は
 ///   `current-password webauthn` を使う。
 #[must_use]
@@ -872,6 +875,19 @@ mod tests {
         let html = render(&input_with_autocomplete(false, &props, t, vec![]));
         assert!(html.contains(r#"autocomplete="current-password""#));
         assert!(!html.contains("email"));
+    }
+
+    #[test]
+    fn input_with_autocomplete_off_and_otp_fall_back_to_props() {
+        let props = default_props("pw");
+        for t in [
+            AutocompleteToken::off(),
+            AutocompleteToken::new(AutocompleteField::OneTimeCode),
+        ] {
+            let html = render(&input_with_autocomplete(false, &props, t, vec![]));
+            assert!(html.contains(r#"autocomplete="current-password""#));
+            assert_eq!(html.matches("autocomplete=").count(), 1);
+        }
     }
 
     #[test]

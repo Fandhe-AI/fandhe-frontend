@@ -538,6 +538,13 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `autocomplete` は大文字小文字を区別せず除去し型付きの値を優先する。既存の
    `field::input` は不変で生文字列経路も維持する。`password_input` では password 系
    以外の field 指定を `props.autocomplete` へフォールバックする。
+   イシュー #3859 で `AutocompleteField::OneTimeCode`（`one-time-code`）と単独値の
+   `AutocompleteToken::off()` / `is_off()` を追加した。`off` と `OneTimeCode` への
+   `with_webauthn()` は no-op で `off webauthn` 等の不正値は表現できない。`off` 時の
+   `field()` は意味を持たない値のため先に `is_off()` で判定する。`password_input` は
+   `off`・`one-time-code` も `props.autocomplete` へフォールバックし（password 欄の
+   保護設定を型付き API で外させない）、`pin_input` の `otp` は `AutocompleteToken`
+   由来の同一出力になった。
 9. イシュー #1615（ark-ui 公式 Data Attributes / Keyboard Support 表・Radix
    `one-time-password-field` 参照突合）で `pin_input` へ `PinInputProps`
    （disabled/readonly/invalid/required）を新設し、`root`/`label`/`input`

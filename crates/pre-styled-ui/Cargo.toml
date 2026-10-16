@@ -1,4 +1,5 @@
 [package]
+# イシュー #3859: headless-ui 0.73.0 追随（再エクスポートする AutocompleteToken/AutocompleteField の語彙追加のため minor バンプ 0.244.0 から 0.245.0）。
 # イシュー #3833: headless-ui 0.72.0 追随（PinInputKind を再エクスポートするため minor バンプ 0.243.0 から 0.244.0）。
 name = "fandhe-frontend-pre-styled-ui"
 # イシュー #2131: charts のツールチップに indicator バリアント（dot/line/
@@ -4232,7 +4233,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #3816: headless-ui 0.70.0（0.x 破壊的変更）への追随。headless-ui を再エクスポートするためマイナーバンプ。
 # イシュー #3817: 型付き autocomplete（input_with_autocomplete / AutocompleteToken）の再エクスポート追加（追加のみ）。
 # イシュー #3832: 再エクスポートする headless-ui のマイナーバンプ（pin_input の paste 挙動変更）に追随する。
-version = "0.244.0"
+version = "0.245.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ（`motion` feature 有効時のみ fandhe-animation を追加、イシュー #2416）。"
 license = "MIT OR Apache-2.0"
@@ -4246,7 +4247,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.72.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.73.0" }
 
 # イシュー #2416: motion 拡張（spring 近似・共通 keyframes 等、親 #2379）の
 # 受け入れ土台。`optional = true` のため既定 feature では依存グラフに現れず
