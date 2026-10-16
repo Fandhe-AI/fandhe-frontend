@@ -52,6 +52,8 @@ struct TestPinHost {
     readback: bool,
     /// 配線 root 自身が PinInput Root（view は Control だけを返す）。
     self_root: bool,
+    /// アプリ所有の `TypeAt` を受けた回数（二重 dispatch の検知用）。
+    type_calls: usize,
 }
 
 impl TestPinHost {
@@ -63,6 +65,7 @@ impl TestPinHost {
             rerender: false,
             readback: true,
             self_root: false,
+            type_calls: 0,
         }
     }
 }
@@ -74,6 +77,7 @@ impl Component for TestPinHost {
         match action {
             HostAction::Pin(a) => self.pin.update(a),
             HostAction::TypeAt(i, c) => {
+                self.type_calls += 1;
                 self.pin.update(PinInputAction::Focus(i));
                 self.pin.update(PinInputAction::Input(c));
             }
@@ -149,6 +153,7 @@ impl Hydrate for TestPinHost {
             rerender: false,
             readback: true,
             self_root: false,
+            type_calls: 0,
         })
     }
 }
@@ -569,4 +574,72 @@ fn nested_roots_suppress_post_composition_input_in_all_listeners() {
         "内側でも二重 dispatch しない"
     );
     assert_eq!(outer_count.get(), 0);
+}
+
+/// キャンセル可能なイベントを `target` へ送り、先行リスナー（target 上）が `preventDefault` する。
+fn dispatch_pre_cancelled(target: &HtmlInputElement, event: &Event) {
+    let cb = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(|e: Event| {
+        e.prevent_default();
+    });
+    target
+        .add_event_listener_with_callback(&event.type_(), cb.as_ref().unchecked_ref())
+        .unwrap();
+    target.dispatch_event(event).unwrap();
+    target
+        .remove_event_listener_with_callback(&event.type_(), cb.as_ref().unchecked_ref())
+        .unwrap();
+}
+
+/// PR #3856 指摘（P1）: 先行リスナーが `preventDefault` 済みの keydown / paste は処理しない。
+#[wasm_bindgen_test]
+fn pre_cancelled_keydown_and_paste_are_ignored() {
+    let (runtime, root, _g) = mount(
+        "pin-it-cancelled",
+        TestPinHost::new(4, PinInputKind::Numeric),
+    );
+    type_into(&root, 0, "1");
+    type_into(&root, 1, "2");
+    let target = digit(&root, 1);
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("Backspace");
+    let key = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+    dispatch_pre_cancelled(&target, &key);
+    assert_eq!(runtime.component().pin.digit(1), "2");
+
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    let paste = Event::new_with_event_init_dict("paste", &init).unwrap();
+    dispatch_pre_cancelled(&digit(&root, 1), &paste);
+    assert_eq!(runtime.component().pin.value(), "12");
+}
+
+/// PR #3856 指摘（P1）: `data-action-input` 桁で `compositionend` の小文字が大文字へ正規化されても、
+/// 直後の追加 `input` で同じ確定操作を再 dispatch しない（アプリへ 1 回だけ届く）。
+#[wasm_bindgen_test]
+fn app_owned_ime_confirm_normalized_to_uppercase_dispatches_once() {
+    let mut host = TestPinHost::new(4, PinInputKind::AlphanumericUppercase);
+    host.custom_action = true;
+    let (runtime, root, _g) = mount("pin-it-ime-upper", host);
+    let target = digit(&root, 0);
+    target.focus().unwrap();
+    let target = digit(&root, 0);
+    target.set_value("a");
+    let confirm = bubbling_event("compositionend");
+    js_sys::Reflect::set(confirm.as_ref(), &"data".into(), &"a".into()).unwrap();
+    target.dispatch_event(&confirm).unwrap();
+    let target = digit(&root, 0);
+    assert_eq!(runtime.component().type_calls, 1);
+    assert_eq!(target.value(), "A");
+
+    let init = web_sys::InputEventInit::new();
+    init.set_bubbles(true);
+    let extra = web_sys::InputEvent::new_with_event_init_dict("input", &init).unwrap();
+    let desc = js_sys::Object::new();
+    js_sys::Reflect::set(&desc, &"value".into(), &"insertFromComposition".into()).unwrap();
+    js_sys::Object::define_property(extra.as_ref(), &"inputType".into(), &desc);
+    target.dispatch_event(&extra).unwrap();
+    assert_eq!(runtime.component().type_calls, 1, "二重 dispatch しない");
 }

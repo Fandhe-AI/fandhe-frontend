@@ -1011,6 +1011,10 @@ mod wiring {
     ) {
         // 次の `input` へ Safari 系の確定後ガードを持ち越さない。
         COMPOSED.with(|c| *c.borrow_mut() = None);
+        // 先行リスナーがキャンセル済みなら何もしない（`wire_keydown` と同じ）。
+        if event.default_prevented() {
+            return;
+        }
         let Some(key) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
@@ -1051,6 +1055,10 @@ mod wiring {
         on_action: &SharedOnAction<F>,
         read_bound: &ReadBound,
     ) {
+        // 先行リスナーがキャンセル済みなら何もしない（全桁置換を防ぐ）。
+        if event.default_prevented() {
+            return;
+        }
         let Some(clipboard) = event.dyn_ref::<ClipboardEvent>() else {
             return;
         };
@@ -1139,6 +1147,9 @@ mod wiring {
                 ValueScope::One(index),
                 read_bound,
             );
+            // 書き戻しで値が変わった（小文字 → 大文字等）場合、`wire_events` の重複防止ガードの
+            // 比較値を更新し、確定後の追加 `input` で同じ確定操作が再 dispatch されないようにする。
+            crate::events::rebase_composed_dispatched_value(target.as_ref(), &input.value());
             return;
         }
         for action in actions.into_iter().flatten() {

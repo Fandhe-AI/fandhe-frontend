@@ -843,6 +843,57 @@ pub fn action_from_keydown<T: AttrSource>(
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない。
 // ---------------------------------------------------------------------
+/// IME 確定（`compositionend`）で dispatch 済みの (対象要素, 現在値, 確定時の値) の 1 ショットガード。
+/// `wire_events` の `input` が同一要素・同一値の追加 `input` を捨てるために使う。現在値は他の配線が
+/// 値を正規化して書き戻したとき（pin-input の大文字化等）に [`rebase_composed_dispatched_value`] で更新する。
+#[cfg(target_arch = "wasm32")]
+type ComposedGuardSlot = Option<(web_sys::EventTarget, String, String)>;
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static COMPOSED_DISPATCHED: std::cell::RefCell<ComposedGuardSlot> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_arch = "wasm32")]
+fn take_composed_dispatched() -> Option<(web_sys::EventTarget, String)> {
+    COMPOSED_DISPATCHED
+        .with(|g| g.borrow_mut().take())
+        .map(|(t, current, _)| (t, current))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn set_composed_dispatched(target: web_sys::EventTarget, value: String) {
+    COMPOSED_DISPATCHED.with(|g| *g.borrow_mut() = Some((target, value.clone(), value)));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn clear_composed_dispatched_if(target: &web_sys::EventTarget, original: &str) {
+    COMPOSED_DISPATCHED.with(|g| {
+        let mut slot = g.borrow_mut();
+        if slot
+            .as_ref()
+            .is_some_and(|(t, _, o)| js_sys::Object::is(t, target) && o == original)
+        {
+            slot.take();
+        }
+    });
+}
+
+/// `target` のガードが残っていれば、比較用の現在値を `new_value`（書き戻し後の DOM 値）へ更新する。
+/// 値を正規化して書き戻す配線（pin-input の `AlphanumericUppercase` 等）が、`compositionend` 後の
+/// 追加 `input` で同じ確定操作を再 dispatch させないために呼ぶ。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn rebase_composed_dispatched_value(target: &web_sys::EventTarget, new_value: &str) {
+    COMPOSED_DISPATCHED.with(|g| {
+        if let Some((t, current, _)) = g.borrow_mut().as_mut() {
+            if js_sys::Object::is(t, target) {
+                *current = new_value.to_owned();
+            }
+        }
+    });
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
@@ -857,8 +908,7 @@ mod wiring {
     #[cfg(feature = "action-keydown")]
     use web_sys::KeyboardEvent;
     use web_sys::{
-        Element, Event, EventTarget, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement,
-        InputEvent,
+        Element, Event, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement, InputEvent,
     };
 
     /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー。
@@ -1189,10 +1239,9 @@ mod wiring {
         // `compositionend` 側で `Some((要素, 値))` を書き込み、`input` 側で
         // 読み取り次第 `take()` して消費する（次の関係ない input まで
         // 誤ってスキップし続けない）。
-        let composed_dispatched_value: std::rc::Rc<
-            std::cell::RefCell<Option<(EventTarget, String)>>,
-        > = std::rc::Rc::new(std::cell::RefCell::new(None));
-        let input_composed_dispatched_value = composed_dispatched_value.clone();
+        // ガード本体は thread_local（`super::COMPOSED_DISPATCHED`）に置く。他の配線
+        // （pin-input 等）が値を正規化して書き戻したときに `rebase_composed_dispatched_value`
+        // で現在値を更新し、追加 `input` を二重 dispatch しないようにするため。
         let change_selector = format!("[{ACTION_CHANGE_ATTR}]");
 
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
@@ -1287,9 +1336,7 @@ mod wiring {
             // 異なる場合（そのまま入力が続いた等）は通常どおり dispatch
             // する。1 ショットのみ有効（`take()` で消費、次の無関係な
             // input まで誤ってスキップし続けない）。
-            if let Some((dispatched_target, dispatched_value)) =
-                input_composed_dispatched_value.borrow_mut().take()
-            {
+            if let Some((dispatched_target, dispatched_value)) = super::take_composed_dispatched() {
                 let same_target = js_sys::Object::is(&dispatched_target, &target);
                 if same_target
                     && extract_form_value(&target).as_deref() == Some(dispatched_value.as_str())
@@ -1320,7 +1367,7 @@ mod wiring {
                 // 直後にブラウザが追加で "input" を発火する場合の二重
                 // dispatch を防ぐガードへ記録する（対象要素も併せて記録、
                 // `input_closure` 側で消費、上記コメント参照）。
-                *composed_dispatched_value.borrow_mut() = Some((target.clone(), value.clone()));
+                super::set_composed_dispatched(target.clone(), value.clone());
                 // ガードを直後の 1 マクロタスクに限定する（イシュー #2069
                 // codex-review P1 再指摘 是正）。対応する追加 "input" が
                 // 発火しない場合、このガードが `take()` されずに無期限へ
@@ -1332,17 +1379,10 @@ mod wiring {
                 // ユーザー操作（必ず新しいマクロタスクで発生する）には
                 // 影響しないようにする。
                 if let Some(window) = web_sys::window() {
-                    let guard_for_timer = composed_dispatched_value.clone();
                     let expected_target = target.clone();
                     let expected_value = value;
                     let reset = Closure::once_into_js(move || {
-                        let mut guard = guard_for_timer.borrow_mut();
-                        let matches = guard.as_ref().is_some_and(|(t, v)| {
-                            js_sys::Object::is(t, &expected_target) && *v == expected_value
-                        });
-                        if matches {
-                            guard.take();
-                        }
+                        super::clear_composed_dispatched_if(&expected_target, &expected_value);
                     });
                     let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
                         reset.unchecked_ref(),
