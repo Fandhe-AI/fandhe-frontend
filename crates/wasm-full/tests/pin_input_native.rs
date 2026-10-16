@@ -8,8 +8,8 @@
 use fandhe_frontend_headless_ui::pin_input::{PinInput, PinInputKind};
 use fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_wasm_full::pin_input::{
-    classify_input_value, input_dispatches, next_focus_index, parse_digit_index, prefilter_char,
-    resolve_kind, view_changed, InputValue, KindResolution,
+    classify_input_value, input_accepted, input_dispatches, next_focus_index, parse_digit_index,
+    prefilter_char, resolve_kind, view_changed, InputValue, KindResolution,
 };
 
 #[test]
@@ -112,4 +112,18 @@ fn view_changed_is_the_explicit_acceptance_signal() {
     assert!(!view_changed(Some("<a>"), Some("<a>")));
     assert!(!view_changed(None, Some("<a>")));
     assert!(!view_changed(Some("<a>"), None));
+}
+
+#[test]
+fn input_accepted_covers_same_digit_retype() {
+    // ビューが変われば受理。
+    assert!(input_accepted(Some("<a>"), Some("<b>"), '1', ""));
+    // ビュー不変でも旧値と同じ文字の打ち直しは受理。
+    assert!(input_accepted(Some("<a>"), Some("<a>"), '1', "1"));
+    // ビュー不変で旧値と異なる文字は拒否。
+    assert!(!input_accepted(Some("<a>"), Some("<a>"), '2', "1"));
+    assert!(!input_accepted(Some("<a>"), Some("<a>"), '2', ""));
+    // ビュー取得失敗は fail-closed。
+    assert!(!input_accepted(None, Some("<a>"), '1', "1"));
+    assert!(!input_accepted(Some("<a>"), None, '1', "1"));
 }

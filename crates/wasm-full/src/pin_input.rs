@@ -47,7 +47,8 @@
 //! の dispatch を担うため、本モジュールは dispatch せずフォーカス移動だけを行う。
 //! 同一 root に複数の PinInput を置く場合のインスタンス区別も、この上書き名で回避する
 //! （payload にインスタンス ID が無いため、本モジュール単独では 1 root : 1 状態機械の
-//! 簡略化が前提）。
+//! 簡略化が前提）。同じ理由で `data-action-input` 桁の `focusin` では汎用 "focus" を
+//! dispatch せず、フォーカス位置の同期もアプリ側の action に委ねる。
 //!
 //! # DOM 同期契約
 //!
@@ -58,7 +59,8 @@
 //! HTML 文字列は組み立てない（REQ-1）。`fandhe_frontend_interactive::dispatch` は
 //! 「復号できたか」しか返さず状態機械の受理・拒否は分からないため、拒否の検出は
 //! 事前フィルタ（`prefilter_char`）で担い、`data-hydrate-kind` が無く kind を知れない場合は
-//! 入力 dispatch の前後で状態から描画したビューが変わったかで受理を確かめる（`view_changed`。
+//! 入力 dispatch の前後で状態から描画したビューが変わったか、または同じ文字の打ち直し（旧値と同一で
+//! 状態は変わらないが受理される）かで受理を確かめる（`input_accepted`。
 //! ブラウザが設定済みのライブ `value` は受理の証拠にしない）。拒否は `events::wire_events` の
 //! bubble `input` dispatch にも渡さない（`events::INPUT_REJECTED_KEY` の拒否印）。受理を確かめてからだけ次桁へ
 //! フォーカスを移し、`data-action-input` 桁は bubble 側の dispatch 完了後（`setTimeout(0)`）に移す。dispatch 後に要素が差し替わりうるので、
@@ -158,17 +160,39 @@ pub fn prefilter_char(kind: KindResolution, c: char) -> Option<char> {
     }
 }
 
-/// 状態機械が入力を受理したかの事後判定。入力 dispatch の前後で状態から描画した
-/// ビュー（`Component::view` の描画結果）が変わったら受理とみなす。
+/// 状態から描画したビューが入力 dispatch の前後で変わったか。
 ///
 /// ブラウザが入力時に設定済みのライブ `value` や、再描画されない場合に残る属性値は
-/// 受理の証拠にならない（拒否された文字が残り続けるため）。状態機械の拒否は
-/// 状態を変えないので、ビューの差分が唯一の明示的な受理結果になる。
-/// 既存桁と同じ文字を打ち直した場合は状態が変わらず、拒否と同じ扱い（旧値は同一文字で
-/// 復元され、フォーカスは動かない）になる。
+/// 受理の証拠にならない（拒否された文字が残り続けるため）。ただし既存桁と同じ文字の
+/// 打ち直しは受理されてもビューが変わらないため、受理判定には [`input_accepted`] を使う。
 #[must_use]
 pub fn view_changed(before: Option<&str>, after: Option<&str>) -> bool {
     matches!((before, after), (Some(b), Some(a)) if b != a)
+}
+
+/// 状態機械が 1 文字入力を受理したかの事後判定。
+///
+/// - ビューが変われば受理。
+/// - ビューが変わらなくても、入力文字が dispatch 前に描画済みだった桁の値（`prev_digit`、
+///   描画済み value 属性）と同一なら受理（同じ文字の打ち直し。その値は既に種別に適合
+///   しているため状態機械は拒否せず、`focused` だけが次桁へ進む）。
+/// - それ以外でビューが変わらなければ拒否（種別不適合などで状態が変わっていない）。
+///
+/// ビュー取得に失敗（`None`）した場合は受理と見なさない（fail-closed）。
+#[must_use]
+pub fn input_accepted(
+    before: Option<&str>,
+    after: Option<&str>,
+    typed: char,
+    prev_digit: &str,
+) -> bool {
+    if view_changed(before, after) {
+        return true;
+    }
+    before.is_some() && after.is_some() && {
+        let mut it = prev_digit.chars();
+        it.next() == Some(typed) && it.next().is_none()
+    }
 }
 
 /// 次にフォーカスする桁。最終桁では留まる。`count == 0` なら `None`。
@@ -197,8 +221,8 @@ pub fn input_dispatches(index: usize, c: char) -> [ActionRef; 2] {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        classify_input_value, input_dispatches, next_focus_index, parse_digit_index,
-        prefilter_char, resolve_kind, view_changed, InputValue, KindResolution, ACTION_FOCUS,
+        classify_input_value, input_accepted, input_dispatches, next_focus_index,
+        parse_digit_index, prefilter_char, resolve_kind, InputValue, KindResolution, ACTION_FOCUS,
         INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
     };
     use crate::dom::has_disabled_ancestor;
@@ -417,10 +441,16 @@ mod wiring {
             // （先に focus() すると focusin の "focus" dispatch で状態機械の focused が
             // 次桁へ移り、後続の "input" が次桁へ書かれる）。
             let deferred_root = root.clone();
+            let prev_digit = input.default_value();
             let before = fingerprint();
             let deferred_fp = fingerprint.clone();
             let cb = Closure::once_into_js(move || {
-                let accepted = view_changed(before.as_deref(), deferred_fp().as_deref());
+                let accepted = input_accepted(
+                    before.as_deref(),
+                    deferred_fp().as_deref(),
+                    normalized,
+                    &prev_digit,
+                );
                 finish_input(&deferred_root, ordinal, index, count, accepted);
             });
             let scheduled = web_sys::window().is_some_and(|w| {
@@ -435,11 +465,21 @@ mod wiring {
         }
         let [focus, value] = input_dispatches(index, normalized);
         call(on_action, focus);
+        // focus dispatch の再描画後に描画済みの旧値を取る（同じ文字の打ち直し判定用）。
+        let prev_digit = resolve_input(root, ordinal, index)
+            .map(|el| el.default_value())
+            .unwrap_or_default();
         let before = fingerprint();
         let dispatched = call(on_action, value);
-        // 受理は「入力 dispatch の前後で状態から描画したビューが変わったか」で判定する
+        // 受理は「ビューの変化」または「同じ文字の打ち直し」で判定する
         // （ブラウザが設定済みのライブ値は受理の証拠にならない）。
-        let accepted = dispatched && view_changed(before.as_deref(), fingerprint().as_deref());
+        let accepted = dispatched
+            && input_accepted(
+                before.as_deref(),
+                fingerprint().as_deref(),
+                normalized,
+                &prev_digit,
+            );
         finish_input(root, ordinal, index, count, accepted);
     }
 
@@ -487,6 +527,11 @@ mod wiring {
         let Some((target, instance_root)) = target_digit(root, event) else {
             return;
         };
+        // `data-action-input` の所有者がいる桁は、複数インスタンスをアプリが入力 action で
+        // 振り分けている可能性がある。インスタンス情報のない汎用 "focus" は送らず委ねる。
+        if has_input_action_owner(root, &target) {
+            return;
+        }
         let count = instance_inputs(&instance_root).len();
         let Some(index) = parse_digit_index(target.get_attribute("data-index").as_deref(), count)
         else {

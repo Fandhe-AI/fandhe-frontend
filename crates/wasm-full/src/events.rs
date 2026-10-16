@@ -1522,7 +1522,8 @@ mod wiring {
 }
 
 /// `input` イベントに拒否印を付ける（[`INPUT_REJECTED_KEY`]）。
-#[cfg(target_arch = "wasm32")]
+/// 呼び出し元は `pin_input` 配線のみのため、feature `pin-input` 無効時はコンパイルしない。
+#[cfg(all(target_arch = "wasm32", feature = "pin-input"))]
 pub(crate) fn mark_input_rejected(event: &web_sys::Event) {
     let _ = js_sys::Reflect::set(
         event,
