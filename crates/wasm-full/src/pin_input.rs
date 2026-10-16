@@ -58,7 +58,7 @@
 //! HTML 文字列は組み立てない（REQ-1）。`fandhe_frontend_interactive::dispatch` は
 //! 「復号できたか」しか返さず状態機械の受理・拒否は分からないため、拒否の検出は
 //! 事前フィルタ（`prefilter_char`）で担い、`data-hydrate-kind` が無く kind を知れない場合は
-//! 再描画後の描画済み value 属性で受理を確かめる（`input_accepted`）。受理を確かめてからだけ次桁へ
+//! 再描画後のライブ `value` で受理を確かめる（`input_accepted`。入力で更新されるのは `value` プロパティで属性ではない）。受理を確かめてからだけ次桁へ
 //! フォーカスを移し、`data-action-input` 桁は bubble 側の dispatch 完了後（`setTimeout(0)`）に移す。dispatch 後に要素が差し替わりうるので、
 //! 要素参照は保持せず「何番目の pin-input root か」と `data-index` から引き直す。
 //!
@@ -156,12 +156,12 @@ pub fn prefilter_char(kind: KindResolution, c: char) -> Option<char> {
     }
 }
 
-/// 状態機械が入力を受理したかの事後判定。再描画後の桁 input の描画済み `value` 属性が
+/// 状態機械が入力を受理したかの事後判定。再描画後の桁 input のライブ `value` が
 /// 入力文字と（大文字小文字を除いて）一致すれば受理とみなす。
 ///
 /// `data-hydrate-kind` が無い通常描画（`KindResolution::Unknown`）では事前フィルタが
 /// 状態機械の kind を知れないため、dispatch の戻り値（復号できたか）ではなく、
-/// 状態機械の結果が反映された DOM で受理を確かめる。
+/// 状態機械の結果が反映された DOM のライブ値で受理を確かめる。
 #[must_use]
 pub fn input_accepted(rendered_value: Option<&str>, c: char) -> bool {
     let mut chars = rendered_value.unwrap_or("").chars();
@@ -207,6 +207,11 @@ mod wiring {
     const INPUT_SELECTOR: &str = r#"[data-scope="pin-input"][data-part="input"]"#;
     const ROOT_SELECTOR: &str = r#"[data-scope="pin-input"][data-part="root"]"#;
 
+    thread_local! {
+        /// フォーカス復元中の `focusin` 再入を抑止するフラグ（wasm は単一スレッド）。
+        static REFOCUSING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
     type SharedOnAction<F> = std::rc::Rc<std::cell::RefCell<F>>;
 
     fn is_part(element: &Element, part: &str) -> bool {
@@ -250,20 +255,34 @@ mod wiring {
             .collect()
     }
 
+    /// 配線 root 配下（root 自身を含む）の PinInput Root を文書順に列挙する。
+    ///
+    /// `query_selector_all` は検索元自身を含まないため、配線 root 自身が PinInput Root の
+    /// 場合は先頭へ加える（`Runtime` が Root 要素そのものを渡す構成への対応）。
+    fn instance_roots(root: &Element) -> Vec<Element> {
+        let mut roots = Vec::new();
+        if is_part(root, ROOT_PART) {
+            roots.push(root.clone());
+        }
+        if let Ok(list) = root.query_selector_all(ROOT_SELECTOR) {
+            roots.extend(
+                (0..list.length()).filter_map(|i| list.item(i)?.dyn_into::<Element>().ok()),
+            );
+        }
+        roots
+    }
+
     /// 配線 root 配下で `instance_root` が何番目の PinInput Root か。
     fn root_ordinal(root: &Element, instance_root: &Element) -> Option<u32> {
-        let list = root.query_selector_all(ROOT_SELECTOR).ok()?;
-        (0..list.length()).find(|&i| {
-            list.item(i)
-                .and_then(|n| n.dyn_into::<Element>().ok())
-                .is_some_and(|e| e == *instance_root)
-        })
+        instance_roots(root)
+            .iter()
+            .position(|e| e == instance_root)
+            .and_then(|i| u32::try_from(i).ok())
     }
 
     /// 再描画で要素が差し替わっても追えるよう、順序と `data-index` から桁 input を引き直す。
     fn resolve_input(root: &Element, ordinal: u32, index: usize) -> Option<HtmlInputElement> {
-        let list = root.query_selector_all(ROOT_SELECTOR).ok()?;
-        let instance_root = list.item(ordinal)?.dyn_into::<Element>().ok()?;
+        let instance_root = instance_roots(root).into_iter().nth(ordinal as usize)?;
         instance_inputs(&instance_root)
             .into_iter()
             .find(|e| {
@@ -378,7 +397,9 @@ mod wiring {
             input.set_value(&normalized.to_string());
         }
         // `data-action-input` がある桁は `events::wire_events` が dispatch を担う。
-        if target.has_attribute(ACTION_INPUT_ATTR) {
+        // 所有者判定は `events::attribute_input_action` と同じ `closest` 探索・root 境界で行う
+        // （祖先の Root やラッパーに属性があっても bubble 側が dispatch するため）。
+        if has_input_action_owner(root, &target) {
             // bubble 側の dispatch と再描画が済んでから確認・フォーカス移動する
             // （先に focus() すると focusin の "focus" dispatch で状態機械の focused が
             // 次桁へ移り、後続の "input" が次桁へ書かれる）。
@@ -405,6 +426,16 @@ mod wiring {
         finish_input(root, ordinal, index, count, normalized);
     }
 
+    /// `data-action-input` を持つ最寄りの祖先（自身を含む）が配線 root 内にあるか。
+    fn has_input_action_owner(root: &Element, target: &Element) -> bool {
+        let selector = format!("[{ACTION_INPUT_ATTR}]");
+        target
+            .closest(&selector)
+            .ok()
+            .flatten()
+            .is_some_and(|matched| root.contains(Some(&matched)))
+    }
+
     /// 桁 input の DOM 値を描画済み value 属性（無ければ空）へ戻す。
     fn restore_input(root: &Element, ordinal: u32, index: usize) {
         if let Some(el) = resolve_input(root, ordinal, index) {
@@ -417,13 +448,15 @@ mod wiring {
         }
     }
 
-    /// dispatch と再描画の完了後に、受理を DOM で確かめてから次桁へフォーカスを移す。
-    /// 拒否されていたら旧値へ戻しフォーカスは動かさない。
+    /// dispatch と再描画の完了後に、ライブの `value`（再描画で要素が差し替わっていれば
+    /// 状態から描画し直された値）が入力文字と一致するかを確かめてから次桁へフォーカスを移す。
+    /// 一致しなければ（再描画で旧値へ戻された）旧値へ戻しフォーカスは動かさない。
+    /// 入力で更新されるのは `value` プロパティで `value` 属性ではないため、属性は見ない。
     fn finish_input(root: &Element, ordinal: u32, index: usize, count: usize, c: char) {
         let Some(el) = resolve_input(root, ordinal, index) else {
             return;
         };
-        if !input_accepted(el.get_attribute("value").as_deref(), c) {
+        if !input_accepted(Some(el.value().as_str()), c) {
             restore_input(root, ordinal, index);
             return;
         }
@@ -447,13 +480,35 @@ mod wiring {
         else {
             return;
         };
-        call(
+        if REFOCUSING.with(std::cell::Cell::get) {
+            return;
+        }
+        let Some(ordinal) = root_ordinal(root, &instance_root) else {
+            return;
+        };
+        let dispatched = call(
             on_action,
             ActionRef {
                 action: ACTION_FOCUS.to_string(),
                 payload: index.to_string(),
             },
         );
+        if !dispatched {
+            return;
+        }
+        // 再描画（構造フォールバック）で桁 input が差し替わるとフォーカスを失うため、
+        // 引き直した要素へフォーカスを戻す。`focus()` の `focusin` 再入は抑止する。
+        let Some(el) = resolve_input(root, ordinal, index) else {
+            return;
+        };
+        let active = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.active_element());
+        if active.as_ref() != Some(el.unchecked_ref::<Element>()) {
+            REFOCUSING.with(|f| f.set(true));
+            let _ = el.focus();
+            REFOCUSING.with(|f| f.set(false));
+        }
     }
 
     /// [`wire_pin_input_events`] に `Component` の dispatch と DOM 反映を接続する。
