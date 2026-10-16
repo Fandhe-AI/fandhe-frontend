@@ -2320,6 +2320,11 @@ source = "site/blocks/auth-tabs-card.md"
 path = "/blocks/auth-tabs-card/"
 
 [[section.group.page]]
+title = "auth-totp-enroll"
+source = "site/blocks/auth-totp-enroll.md"
+path = "/blocks/auth-totp-enroll/"
+
+[[section.group.page]]
 title = "login-01"
 source = "site/blocks/login-01.md"
 path = "/blocks/login-01/"

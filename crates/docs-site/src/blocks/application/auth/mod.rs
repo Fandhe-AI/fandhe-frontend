@@ -19,6 +19,7 @@ mod auth_recovery_codes;
 mod auth_split_accent_panel;
 mod auth_split_photo_testimonial;
 mod auth_tabs_card;
+mod auth_totp_enroll;
 mod login_01;
 mod login_04;
 mod signup_01;
@@ -37,6 +38,7 @@ pub(super) fn blocks() -> Vec<Block> {
         auth_split_accent_panel::BLOCK,
         auth_split_photo_testimonial::BLOCK,
         auth_tabs_card::BLOCK,
+        auth_totp_enroll::BLOCK,
         login_01::BLOCK,
         login_04::BLOCK,
         signup_01::BLOCK,
