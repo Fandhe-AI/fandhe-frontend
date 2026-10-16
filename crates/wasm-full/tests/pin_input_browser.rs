@@ -1,6 +1,8 @@
-//! `fandhe_frontend_wasm_full::Runtime::mount`/`hydrate` が PinInput の `input` / `focusin`
-//! を配線することを確認する実ブラウザ統合テスト（`wasm-pack test --headless --chrome`、
-//! イシュー #3834、PR #3855 レビュー指摘 1〜11 の回帰固定）。
+//! `fandhe_frontend_wasm_full::Runtime::mount`/`hydrate` が PinInput の `input` / `focusin` /
+//! `keydown` / `paste` / `compositionend` を配線することを確認する実ブラウザ統合テスト
+//! （`wasm-pack test --headless --chrome`、イシュー #3834・#3835、PR #3855 レビュー指摘 1〜11 の回帰固定。
+//! paste・keydown・IME の網羅的な実ブラウザ検証は #3836 の担当で、本ファイルには #3835 の仕様変更で
+//! 期待値が変わったテストの書き換えと keydown の最小スモークだけを置く）。
 //!
 //! 検証する不変条件: 入力の受理・拒否と `focused` の位置は状態機械（`PinInput`）だけが決め、
 //! DOM 層は dispatch 後の状態（`BindingSource` の予約 field 経由）を読み戻して値とフォーカスを
@@ -24,7 +26,9 @@ use fandhe_frontend_wasm_full::pin_input::{bound_value_for, parse_field};
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit, HtmlInputElement};
+use web_sys::{
+    Document, Element, Event, EventInit, HtmlInputElement, KeyboardEvent, KeyboardEventInit,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -240,9 +244,10 @@ fn accepted_input_advances_focus_to_state_focused() {
     assert_eq!(digit(&root, 0).value(), "5");
 }
 
-/// ネイティブ削除（Empty）した桁は、別の桁の入力で状態から復活しない（値の書き込みは入力のあった桁だけ）。
+/// ネイティブ削除（Empty、`inputType` 不明のため `delete`）した桁は状態でも空になり、別の桁の入力で
+/// 復活しない（値の書き込みは入力のあった桁だけ。#3835 で削除が状態へ届くようになった）。
 #[wasm_bindgen_test]
-fn natively_cleared_digit_is_not_resurrected_by_another_digits_input() {
+fn deleted_digit_is_not_resurrected_by_another_digits_input() {
     let (runtime, root, _g) = mount(
         "pin-it-noresurrect",
         TestPinHost::new(4, PinInputKind::Numeric),
@@ -252,7 +257,7 @@ fn natively_cleared_digit_is_not_resurrected_by_another_digits_input() {
     type_into(&root, 2, "3");
     type_into(&root, 2, "");
     type_into(&root, 0, "5");
-    assert_eq!(runtime.component().pin.digit(2), "3");
+    assert_eq!(runtime.component().pin.digit(2), "");
     assert_eq!(digit(&root, 0).value(), "5");
     assert_eq!(digit(&root, 2).value(), "");
 }
@@ -326,15 +331,41 @@ fn unreadable_host_leaves_dom_focus_and_value_untouched() {
     assert_eq!(digit(&root, 0).value(), "5");
 }
 
-/// 0 文字・2 文字以上は #3835 の担当のため何も dispatch せず DOM の値も変えない。
+/// 2 文字以上は `paste`（autofill・`insertFromPaste`）として全桁へ分配され、0 文字（`inputType` 不明の
+/// 合成 `Event`）は `delete` として状態の桁も空になる（#3835 で接続。#3834 では何も dispatch しなかった）。
 #[wasm_bindgen_test]
-fn empty_and_multi_char_values_are_left_alone() {
+fn empty_and_multi_char_values_reach_state_machine() {
     let (runtime, root, _g) = mount("pin-it-multi", TestPinHost::new(4, PinInputKind::Numeric));
     type_into(&root, 0, "12");
-    assert_eq!(runtime.component().pin.value(), "");
-    assert_eq!(digit(&root, 0).value(), "12");
+    assert_eq!(runtime.component().pin.value(), "12");
+    assert_eq!(digit(&root, 0).value(), "1");
+    assert_eq!(digit(&root, 1).value(), "2");
     type_into(&root, 1, "");
-    assert_eq!(runtime.component().pin.value(), "");
+    assert_eq!(runtime.component().pin.digit(1), "");
+    assert_eq!(digit(&root, 1).value(), "");
+}
+
+/// keydown の Backspace は `preventDefault` し、現在桁を消して前の桁へフォーカスを戻す（スモーク）。
+#[wasm_bindgen_test]
+fn backspace_keydown_clears_digit_moves_focus_and_prevents_default() {
+    let (runtime, root, _g) = mount("pin-it-bs", TestPinHost::new(4, PinInputKind::Numeric));
+    type_into(&root, 0, "1");
+    type_into(&root, 1, "2");
+    let target = digit(&root, 1);
+    target.focus().expect("focus must not fail");
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("Backspace");
+    let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail");
+    target
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+    assert!(event.default_prevented());
+    assert_eq!(runtime.component().pin.digit(1), "");
+    assert_eq!(digit(&root, 1).value(), "");
+    assert_eq!(active_digit(&root).as_deref(), Some("0"));
 }
 
 /// 指摘 3: 配線 root 自身が PinInput Root でも入力とフォーカス移動が成立する。
