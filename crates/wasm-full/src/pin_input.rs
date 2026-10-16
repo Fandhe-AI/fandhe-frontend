@@ -53,7 +53,7 @@
 //!
 //! 桁の値・`data-filled`・`data-complete`・hidden-input の反映は、アプリの `C` が dirty を
 //! 立てて `apply_dirty_if_any` の再描画経路で行う。本モジュールが DOM を直接書くのは
-//! 大文字そろえ kind の表示補正と、kind に適合しない文字の値クリアの 2 点だけで、
+//! 大文字そろえ kind の表示補正と、kind に適合しない文字の旧値復元（描画済み value 属性、無ければ空）の 2 点だけで、
 //! いずれも `HtmlInputElement::set_value`（ASCII 英数字 1 文字または空文字）に限る。
 //! HTML 文字列は組み立てない（REQ-1）。`fandhe_frontend_interactive::dispatch` は
 //! 「復号できたか」しか返さず状態機械の受理・拒否は分からないため、拒否の検出は
@@ -273,7 +273,7 @@ mod wiring {
         Some((target, instance_root))
     }
 
-    /// `input` / `focusin` を `root` へ 1 回ずつ登録する（`Closure::forget` は計 2 回）。
+    /// `input`（capture）/ `focusin` を `root` へ 1 回ずつ登録する（`Closure::forget` は計 2 回）。
     ///
     /// `on_action` は dispatch できたとき `true` を返す。フォーカス移動は `on_action` から
     /// 戻った後（`component` の借用解放後）に行う。
@@ -292,7 +292,13 @@ mod wiring {
         let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             handle_input(&input_root, &event, &input_on_action);
         });
-        root.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
+        // capture で登録し、`events::wire_events` の bubble `input` dispatch より前に
+        // 大文字そろえ・値の復元を済ませる（正規化前の値が dispatch されるのを防ぐ）。
+        root.add_event_listener_with_callback_and_bool(
+            "input",
+            input_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
         input_closure.forget();
 
         let focus_root = root.clone();
@@ -345,7 +351,13 @@ mod wiring {
             return;
         };
         let Some(normalized) = prefilter_char(kind, c) else {
-            input.set_value("");
+            // 状態機械へは何も送らないため、DOM を状態側の旧値（描画済み value 属性）へ戻す。
+            let restored = input.default_value();
+            if restored.chars().count() <= 1 {
+                input.set_value(&restored);
+            } else {
+                input.set_value("");
+            }
             return;
         };
         if normalized != c {
