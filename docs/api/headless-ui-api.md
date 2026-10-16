@@ -549,6 +549,14 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    かった）、`PinInputAction::Delete`（現在桁のみ消去、フォーカス移動な
    し）・`PinInputAction::Prev`/`PinInputAction::Next`（ArrowLeft/
    ArrowRight）を新設した（dispatch 語彙: `"delete"`/`"prev"`/`"next"`）。
+    - イシュー #3833: `PinInputKind` に opt-in の `AlphanumericUppercase`/
+      `AlphabeticUppercase`（hydration 語彙 `alphanumeric-uppercase`/
+      `alphabetic-uppercase`）を追加した。`Input`/`Paste` で ASCII 英小文字を
+      `to_ascii_uppercase` で大文字へそろえる（状態側の正規化が正。CSS
+      `text-transform` は送信値と食い違うため不採用）。この kind のときだけ
+      `autocapitalize="characters"`（固定語彙）を出し、呼び出し側 `attrs` の
+      `autocapitalize` は除外する。hydration で小文字の桁は `InvalidValue`。
+      既存 kind の挙動は不変。値の検証はアプリの責務のまま（§3.25）。
 10. `format` モジュールはテキスト値を返す純関数であり、出力は呼び出し側が
    必ず `fandhe_frontend_core::text()` ノード → 上記 2 の既定エスケープを
    経由してから描画する（本モジュール自体は HTML を組み立てない）。

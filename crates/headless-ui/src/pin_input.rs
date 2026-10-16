@@ -55,13 +55,42 @@
 //!   （`INPUT.ADVANCE`）・`Enter` 自動送信（`autoSubmit`）・
 //!   `blurOnComplete`/`selectOnFocus`/`pattern` と任意の `sanitizeValue`
 //!   コールバックはクライアント DOM 配線・アプリロジックの関心（下記スコープ外節）。
-//!   貼り付け時の区切り文字（`-`・空白類）除去だけは固定集合で状態機械が担う
-//!   （文字種をそろえる入力補助でありデータ検証ではない。§3.25）。
+//!   貼り付け時の区切り文字（`-`・空白類）除去と、opt-in の英字大文字そろえ
+//!   だけは固定規則で状態機械が担う（文字種をそろえる入力補助でありデータ検証
+//!   ではない。§3.25）。
 //! - `inputmode`（`otp || numeric` → 強制 `numeric`）・
-//!   `autocomplete="off"` の明示・`enterkeyhint`/`autocapitalize` は native
-//!   ヒントであり、既存の最小主義判断を維持する。
+//!   `autocomplete="off"` の明示・`enterkeyhint` は native ヒントであり、
+//!   既存の最小主義判断を維持する。`autocapitalize` は大文字そろえの kind
+//!   （[`PinInputKind::AlphanumericUppercase`]/
+//!   [`PinInputKind::AlphabeticUppercase`]）のときだけ固定語彙 `characters` を出す
+//!   （下記「英字の大文字そろえ」節）。
 //! - `aria-label` の文言差（`"PIN digit N of M"` vs ark-ui 既定の
 //!   `"pin code N of M"`）は意味論同一のため変更しない。
+//!
+//! # 英字の大文字そろえ（イシュー #3833）
+//!
+//! RFC 8628 のユーザーコード（例: `WDJB-MJHT`）のように大文字で扱わせたい
+//! 英字コード向けの opt-in 入力補助。値の正しさの検証（照合・有効期限等）は
+//! アプリの責務のままで、本機能は文字種をそろえるだけである（§3.25）。
+//!
+//! - **有効化は kind で行う（opt-in）**: [`PinInputKind::AlphanumericUppercase`]
+//!   （`"alphanumeric-uppercase"`）/ [`PinInputKind::AlphabeticUppercase`]
+//!   （`"alphabetic-uppercase"`）。既存の `Alphanumeric`/`Alphabetic` の挙動は
+//!   変えない（大文字・小文字を区別するコードの送信値を黙って変えないため）。
+//!   `Numeric` には大文字小文字が無く対象外。kind は `input()`/`update`/
+//!   hydration が既に運んでいるため、シグネチャを変えずに全経路へ伝わる。
+//! - **正規化は状態側が正**: [`PinInputKind::normalize_char`] が
+//!   `to_ascii_uppercase` で 1 文字を 1 文字へ変換する（`to_uppercase` は
+//!   `ß` → `SS` のように複数文字へ展開し「1 桁 1 文字」を壊すため使わない）。
+//!   `Input` と `Paste` の双方で適用する。CSS `text-transform: uppercase` は
+//!   表示だけを変えて送信値（[`hidden_input`]）と食い違うため正規化手段として
+//!   採用しない。DOM の値を状態から書き戻す配線はクライアント側の責務。
+//! - **`autocapitalize="characters"`**: 大文字そろえの kind のときだけ固定語彙で
+//!   出す。モバイルのソフトウェアキーボード向けヒントにすぎず、保証は上記の
+//!   状態側正規化が担う。この kind では呼び出し側 `attrs` の `autocapitalize`
+//!   を `drop_reserved` が除外する（他の kind では従来どおり通す）。
+//! - **hydration は正規化せず拒否する**: 大文字そろえの kind に小文字の桁が来た
+//!   場合は SSR/CSR の不一致か改ざんとして `InvalidValue` にする。
 //!
 //! # スコープ外（イシュー #739 本文が明示）
 //!
@@ -73,7 +102,7 @@
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`inputmode`/`autocomplete`/`placeholder`/
-//!   `maxlength`/`name`）はすべて `&'static str` リテラルで固定しており、
+//!   `maxlength`/`name`/`autocapitalize`）はすべて `&'static str` リテラルで固定しており、
 //!   動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`](mod@crate::anatomy)/
 //!   [`crate::aria`]/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（各桁 `value`/`name`/呼び出し側 `attrs`/children テキスト/
@@ -193,6 +222,9 @@ const INPUT_RESERVED: &[&str] = &[
     "aria-invalid",
 ];
 
+/// 大文字そろえの kind で [`input`] が固定付与する `autocapitalize`（偽装防止）。
+const AUTOCAPITALIZE_RESERVED: &[&str] = &["autocapitalize"];
+
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
 /// 除外する（[`crate::color_picker::drop_reserved`]/
 /// [`crate::checkbox::drop_reserved`] と同型の重複実装。モジュール間の
@@ -209,8 +241,9 @@ fn drop_reserved<'a>(
 
 /// PinInput が受け付ける文字種別。`inputmode` 属性値・文字検証の両方を決める。
 ///
-/// hydration 語彙（`data-hydrate-kind`）は固定 3 値
-/// （`"numeric"`/`"alphanumeric"`/`"alphabetic"`）とし、[`PinInputKind::as_str`]/
+/// hydration 語彙（`data-hydrate-kind`）は固定 5 値
+/// （`"numeric"`/`"alphanumeric"`/`"alphabetic"`/`"alphanumeric-uppercase"`/
+/// `"alphabetic-uppercase"`）とし、[`PinInputKind::as_str`]/
 /// [`PinInputKind::parse`] が唯一のエンコード/デコード経路である
 /// （パーツ関数間・hydration 間で語彙を分裂させない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -222,6 +255,10 @@ pub enum PinInputKind {
     Alphanumeric,
     /// 英字のみ。
     Alphabetic,
+    /// 英数字。英小文字は入力・貼り付け時に大文字へそろえる（イシュー #3833、opt-in）。
+    AlphanumericUppercase,
+    /// 英字のみ。英小文字は入力・貼り付け時に大文字へそろえる（イシュー #3833、opt-in）。
+    AlphabeticUppercase,
 }
 
 impl PinInputKind {
@@ -232,6 +269,8 @@ impl PinInputKind {
             Self::Numeric => "numeric",
             Self::Alphanumeric => "alphanumeric",
             Self::Alphabetic => "alphabetic",
+            Self::AlphanumericUppercase => "alphanumeric-uppercase",
+            Self::AlphabeticUppercase => "alphabetic-uppercase",
         }
     }
 
@@ -243,6 +282,8 @@ impl PinInputKind {
             "numeric" => Some(Self::Numeric),
             "alphanumeric" => Some(Self::Alphanumeric),
             "alphabetic" => Some(Self::Alphabetic),
+            "alphanumeric-uppercase" => Some(Self::AlphanumericUppercase),
+            "alphabetic-uppercase" => Some(Self::AlphabeticUppercase),
             _ => None,
         }
     }
@@ -253,17 +294,44 @@ impl PinInputKind {
     pub const fn inputmode(self) -> Option<&'static str> {
         match self {
             Self::Numeric => Some("numeric"),
-            Self::Alphanumeric | Self::Alphabetic => None,
+            Self::Alphanumeric
+            | Self::Alphabetic
+            | Self::AlphanumericUppercase
+            | Self::AlphabeticUppercase => None,
         }
     }
 
-    /// 1 文字が本種別に適合するかどうか（ASCII のみを許容する）。
+    /// 大文字そろえ用の kind なら `Some("characters")`、それ以外は `None`。
+    /// モバイルのソフトウェアキーボード向けヒントで、値は固定語彙のみ
+    /// （保証は [`Self::normalize_char`] が担う）。
+    #[must_use]
+    pub const fn autocapitalize(self) -> Option<&'static str> {
+        match self {
+            Self::AlphanumericUppercase | Self::AlphabeticUppercase => Some("characters"),
+            Self::Numeric | Self::Alphanumeric | Self::Alphabetic => None,
+        }
+    }
+
+    /// 1 文字を本種別の正規形へそろえる。大文字そろえの kind では ASCII 英小文字を
+    /// 大文字にし（常に 1 文字 → 1 文字）、それ以外は入力をそのまま返す。
+    #[must_use]
+    pub const fn normalize_char(self, c: char) -> char {
+        match self {
+            Self::AlphanumericUppercase | Self::AlphabeticUppercase => c.to_ascii_uppercase(),
+            Self::Numeric | Self::Alphanumeric | Self::Alphabetic => c,
+        }
+    }
+
+    /// 1 文字が本種別に適合するかどうか（ASCII のみを許容する）。大文字そろえの
+    /// kind は正規化後の文字（大文字・数字）を判定対象とし、小文字は不適合になる。
     #[must_use]
     pub fn is_valid_char(self, c: char) -> bool {
         match self {
             Self::Numeric => c.is_ascii_digit(),
             Self::Alphanumeric => c.is_ascii_alphanumeric(),
             Self::Alphabetic => c.is_ascii_alphabetic(),
+            Self::AlphanumericUppercase => c.is_ascii_digit() || c.is_ascii_uppercase(),
+            Self::AlphabeticUppercase => c.is_ascii_uppercase(),
         }
     }
 }
@@ -321,6 +389,8 @@ pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
 ///   `false` のとき `type="text"`。
 /// - `kind` の [`PinInputKind::inputmode`] が `Some` の場合のみ `inputmode`
 ///   属性を出力する。
+/// - 大文字そろえの kind では `autocapitalize="characters"`（固定語彙）を付与し、
+///   呼び出し側 `attrs` の `autocapitalize` は除外する（他の kind は従来どおり）。
 /// - `otp` は `true` のとき `autocomplete="one-time-code"`
 ///   （WebOTP/SMS 自動入力との連携、ark-ui 準拠）を付与する。
 /// - `aria-label` は `format!` で組み立てた「桁 `index + 1` / 全 `count` 桁」
@@ -347,7 +417,10 @@ pub fn input<'a>(
     complete: bool,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
-    let attrs = drop_reserved(attrs, INPUT_RESERVED);
+    let mut attrs = drop_reserved(attrs, INPUT_RESERVED);
+    if kind.autocapitalize().is_some() {
+        attrs = drop_reserved(attrs, AUTOCAPITALIZE_RESERVED);
+    }
     // aria-label/data-index は呼び出し時にのみ必要な一時 String であり、
     // el() が即座に owned String へコピーするため関数スコープを超えて
     // 借用が残ることはない（`crates/core/src/lib.rs::el` 参照）。
@@ -365,6 +438,9 @@ pub fn input<'a>(
     ];
     if let Some(mode) = kind.inputmode() {
         merged.push(("inputmode", mode));
+    }
+    if let Some(v) = kind.autocapitalize() {
+        merged.push(("autocapitalize", v));
     }
     if otp {
         merged.push(("autocomplete", "one-time-code"));
@@ -485,6 +561,7 @@ impl PinInput {
         let max = self.values.len();
         let mut out: Vec<char> = Vec::new();
         for c in s.chars().filter(|&c| !is_paste_separator(c)) {
+            let c = self.kind.normalize_char(c);
             if out.len() >= max || !self.kind.is_valid_char(c) {
                 return None;
             }
@@ -627,7 +704,9 @@ impl Component for PinInput {
     fn update(&mut self, action: PinInputAction) {
         match action {
             PinInputAction::Input(c) => {
-                // 種別不適合文字は no-op（fail-closed、モジュール doc 参照）。
+                // 大文字そろえの kind は先に正規化し、種別不適合文字は no-op
+                // （fail-closed、モジュール doc 参照）。
+                let c = self.kind.normalize_char(c);
                 if !self.kind.is_valid_char(c) {
                     return;
                 }
@@ -1225,10 +1304,13 @@ mod tests {
             PinInputKind::Numeric,
             PinInputKind::Alphanumeric,
             PinInputKind::Alphabetic,
+            PinInputKind::AlphanumericUppercase,
+            PinInputKind::AlphabeticUppercase,
         ] {
             assert_eq!(PinInputKind::parse(kind.as_str()), Some(kind));
         }
         assert_eq!(PinInputKind::parse("unknown"), None);
+        assert_eq!(PinInputKind::parse("ALPHANUMERIC-UPPERCASE"), None);
     }
 
     #[test]
@@ -1526,12 +1608,159 @@ mod tests {
         }
     }
 
+    // --- 英字の大文字そろえ（イシュー #3833） ---
+
+    const UPPER_KINDS: [PinInputKind; 2] = [
+        PinInputKind::AlphanumericUppercase,
+        PinInputKind::AlphabeticUppercase,
+    ];
+
+    fn render_input(kind: PinInputKind, attrs: Vec<(&str, &str)>) -> String {
+        render(&input(
+            0,
+            4,
+            "",
+            kind,
+            false,
+            false,
+            &PinInputProps::default(),
+            false,
+            attrs,
+        ))
+    }
+
+    #[test]
+    fn uppercase_kind_char_tables() {
+        let k = PinInputKind::AlphanumericUppercase;
+        assert_eq!(k.normalize_char('a'), 'A');
+        assert_eq!(k.normalize_char('5'), '5');
+        assert!(k.is_valid_char('A') && k.is_valid_char('5'));
+        assert!(!k.is_valid_char('a') && !k.is_valid_char('-'));
+        let k = PinInputKind::AlphabeticUppercase;
+        assert!(k.is_valid_char('Z') && !k.is_valid_char('z') && !k.is_valid_char('5'));
+        for k in UPPER_KINDS {
+            assert_eq!(k.autocapitalize(), Some("characters"));
+            assert_eq!(k.inputmode(), None);
+        }
+        for k in [
+            PinInputKind::Numeric,
+            PinInputKind::Alphanumeric,
+            PinInputKind::Alphabetic,
+        ] {
+            assert_eq!(k.autocapitalize(), None);
+            assert_eq!(k.normalize_char('a'), 'a');
+        }
+    }
+
+    #[test]
+    fn uppercase_input_normalizes_and_advances() {
+        for kind in UPPER_KINDS {
+            let mut p = PinInput::new(3, kind);
+            assert!(dispatch(&mut p, "input", "a"));
+            assert_eq!(p.value(), "A");
+            assert_eq!(p.focused_index(), Some(1));
+        }
+    }
+
+    #[test]
+    fn uppercase_paste_normalizes_with_separator_strip() {
+        let mut p = PinInput::new(8, PinInputKind::AlphanumericUppercase);
+        assert!(dispatch(&mut p, "paste", "wdjb-mjht"));
+        assert_eq!(p.value(), "WDJBMJHT");
+        assert!(p.is_complete());
+        let mut p = PinInput::new(4, PinInputKind::AlphanumericUppercase);
+        assert!(dispatch(&mut p, "paste", "WdJ1"));
+        assert_eq!(p.value(), "WDJ1");
+    }
+
+    #[test]
+    fn uppercase_kind_rejects_invalid_fail_closed() {
+        for s in ["\u{ff41}", "\u{131}", "\u{df}", "!"] {
+            let mut p = PinInput::new(4, PinInputKind::AlphanumericUppercase);
+            assert!(dispatch(&mut p, "input", s));
+            assert_eq!(p.value(), "", "{s:?}");
+            assert!(dispatch(&mut p, "paste", &format!("ab{s}")));
+            assert_eq!(p.value(), "", "{s:?}");
+        }
+        // 区切り文字は 1 文字入力では no-op（貼り付けでは除去される）。
+        let mut p = PinInput::new(4, PinInputKind::AlphanumericUppercase);
+        assert!(dispatch(&mut p, "input", "-"));
+        assert_eq!(p.value(), "");
+        let mut p = PinInput::new(4, PinInputKind::AlphabeticUppercase);
+        assert!(dispatch(&mut p, "input", "5"));
+        assert_eq!(p.value(), "");
+    }
+
+    #[test]
+    fn non_uppercase_kinds_keep_case_and_numeric_unchanged() {
+        for kind in [PinInputKind::Alphanumeric, PinInputKind::Alphabetic] {
+            let mut p = PinInput::new(4, kind);
+            assert!(dispatch(&mut p, "input", "a"));
+            assert!(dispatch(&mut p, "paste", "wdjb"));
+            assert_eq!(p.value(), "wdjb");
+            assert!(!render_input(kind, vec![]).contains("autocapitalize"));
+        }
+        let mut p = PinInput::new(4, PinInputKind::Numeric);
+        assert!(dispatch(&mut p, "input", "a"));
+        assert_eq!(p.value(), "");
+        assert!(dispatch(&mut p, "paste", "12 34"));
+        assert_eq!(p.value(), "1234");
+        let html = render_input(PinInputKind::Numeric, vec![]);
+        assert!(html.contains(r#"inputmode="numeric""#));
+        assert!(!html.contains("autocapitalize"));
+        // 無効時は呼び出し側 attrs の autocapitalize を従来どおり通す。
+        let html = render_input(PinInputKind::Alphanumeric, vec![("autocapitalize", "off")]);
+        assert!(html.contains(r#"autocapitalize="off""#));
+    }
+
+    #[test]
+    fn uppercase_input_emits_fixed_autocapitalize_and_drops_caller_attr() {
+        for kind in UPPER_KINDS {
+            let html = render_input(
+                kind,
+                vec![("autocapitalize", "off"), ("AutoCapitalize", "\"><script>")],
+            );
+            assert_eq!(html.matches("utocapitalize").count(), 1, "{html}");
+            assert!(html.contains(r#"autocapitalize="characters""#), "{html}");
+            assert!(!html.contains("inputmode") && !html.contains("<script>"));
+        }
+    }
+
+    #[test]
+    fn uppercase_hydration_roundtrip_and_rejects_lowercase() {
+        let mut p = PinInput::new(4, PinInputKind::AlphanumericUppercase);
+        assert!(dispatch(&mut p, "paste", "ab12"));
+        let attrs = p.hydration_attrs();
+        assert!(attrs
+            .iter()
+            .any(|(k, v)| k.ends_with("kind") && v == "alphanumeric-uppercase"));
+        let restored = PinInput::from_hydration_attrs(&attrs).unwrap();
+        assert_eq!(restored.value(), "AB12");
+        let tampered = vec![
+            ("data-hydrate-count".to_string(), "2".to_string()),
+            (
+                "data-hydrate-kind".to_string(),
+                "alphanumeric-uppercase".to_string(),
+            ),
+            (
+                "data-hydrate-values".to_string(),
+                codec::encode_list(&["a".to_string(), "B".to_string()]),
+            ),
+        ];
+        assert!(matches!(
+            PinInput::from_hydration_attrs(&tampered),
+            Err(HydrateError::InvalidValue { .. })
+        ));
+    }
+
     #[test]
     fn paste_separators_are_disjoint_from_all_kinds() {
         for kind in [
             PinInputKind::Numeric,
             PinInputKind::Alphabetic,
             PinInputKind::Alphanumeric,
+            PinInputKind::AlphanumericUppercase,
+            PinInputKind::AlphabeticUppercase,
         ] {
             for c in ['-', ' ', '\t', '\n', '\u{3000}'] {
                 assert!(is_paste_separator(c));
