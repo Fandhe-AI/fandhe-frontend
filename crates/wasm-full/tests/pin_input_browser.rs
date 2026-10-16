@@ -542,3 +542,31 @@ fn compositionend_cancel_with_restored_digit_dispatches_nothing() {
     assert!(inner_count.get() > 0);
     assert_eq!(outer_count.get(), 0);
 }
+
+/// PR #3856 指摘（P1）: 確定後の追加 `input`（Safari 系）の抑止判定は、入れ子の配線 root でも
+/// 外側・内側の双方の capture で維持され、内側の bubble で二重 dispatch されない。
+#[wasm_bindgen_test]
+fn nested_roots_suppress_post_composition_input_in_all_listeners() {
+    let (_outer, target, outer_count, inner_count, _g) = nested_wired("pin-it-nested-ime");
+    target.set_value("5");
+    let confirm = bubbling_event("compositionend");
+    js_sys::Reflect::set(confirm.as_ref(), &"data".into(), &"5".into()).unwrap();
+    target.dispatch_event(&confirm).unwrap();
+    let after_confirm = inner_count.get();
+    assert!(after_confirm > 0);
+
+    let init = web_sys::InputEventInit::new();
+    init.set_bubbles(true);
+    let extra = web_sys::InputEvent::new_with_event_init_dict("input", &init).unwrap();
+    // 合成イベントの `inputType` は初期化辞書では反映されない環境があるため、インスタンスへ直接定義する。
+    let desc = js_sys::Object::new();
+    js_sys::Reflect::set(&desc, &"value".into(), &"insertFromComposition".into()).unwrap();
+    js_sys::Object::define_property(extra.as_ref(), &"inputType".into(), &desc);
+    target.dispatch_event(&extra).unwrap();
+    assert_eq!(
+        inner_count.get(),
+        after_confirm,
+        "内側でも二重 dispatch しない"
+    );
+    assert_eq!(outer_count.get(), 0);
+}

@@ -569,6 +569,14 @@ mod wiring {
         app_owned: bool,
     }
 
+    /// `compositionend` 後の二重適用ガード。確定後の最初の `input` イベントを `seen` に記録し、
+    /// 同一イベントの伝播中は（入れ子の配線 root の全 capture リスナーで）抑止判定を維持する。
+    /// 別イベントが来た時点で破棄する（`take()` で 1 回消費する方式は外側が消費して内側が漏れる）。
+    struct ComposedGuard {
+        element: Element,
+        seen: Option<Event>,
+    }
+
     thread_local! {
         /// フォーカス反映中の `focusin` 再入を抑止するフラグ（wasm は単一スレッド）。
         static REFOCUSING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -576,7 +584,7 @@ mod wiring {
         static PENDING: std::cell::RefCell<Option<Pending>> = const { std::cell::RefCell::new(None) };
         /// 直近に `compositionend` を処理した桁 input（Safari 系の確定後の追加 `input` を 1 回だけ
         /// 捨てるためのガード。次の `input`・`keydown` で必ず破棄する）。
-        static COMPOSED: std::cell::RefCell<Option<Element>> = const { std::cell::RefCell::new(None) };
+        static COMPOSED: std::cell::RefCell<Option<ComposedGuard>> = const { std::cell::RefCell::new(None) };
         /// 直近に処理した `keydown` / `paste` / `compositionend` イベント。入れ子の配線 root で
         /// 同一イベントが内側・外側の両ハンドラへ届いても、最初（最内）の 1 回だけ処理するための印。
         static CLAIMED: std::cell::RefCell<Option<Event>> = const { std::cell::RefCell::new(None) };
@@ -868,7 +876,19 @@ mod wiring {
     /// capture 段: 入力された桁の場所と値の分類を記録する（受理・拒否の判断はしない）。
     fn record_input(root: &Element, event: &Event) {
         PENDING.with(|p| *p.borrow_mut() = None);
-        let composed = COMPOSED.with(|c| c.borrow_mut().take());
+        let composed = COMPOSED.with(|c| {
+            let mut slot = c.borrow_mut();
+            let mut guard = slot.take()?;
+            match &guard.seen {
+                Some(seen) if js_sys::Object::is(seen.as_ref(), event.as_ref()) => {}
+                // 別イベントの伝播に入ったので破棄する。
+                Some(_) => return None,
+                None => guard.seen = Some(event.clone()),
+            }
+            let element = guard.element.clone();
+            *slot = Some(guard);
+            Some(element)
+        });
         let input_event = event.dyn_ref::<InputEvent>();
         // IME 変換中は確定前の文字列を扱わない（fail-closed）。
         if input_event.is_some_and(InputEvent::is_composing) {
@@ -1103,7 +1123,12 @@ mod wiring {
             }
             Classified::Kind(_) => (None, ValueScope::One(index)),
         };
-        COMPOSED.with(|c| *c.borrow_mut() = Some(target.clone()));
+        COMPOSED.with(|c| {
+            *c.borrow_mut() = Some(ComposedGuard {
+                element: target.clone(),
+                seen: None,
+            })
+        });
         if has_input_action_owner(root, &target) {
             // アプリ所有の桁は dispatch せず、値の書き込みもその桁だけにとどめる。
             reflect(
