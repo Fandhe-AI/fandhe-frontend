@@ -473,6 +473,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-otp-verify/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-passkey-manage/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-passkey-sign-in/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-recovery-codes/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-split-accent-panel/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/auth-tabs-card/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/blocks/login-01/index.html"

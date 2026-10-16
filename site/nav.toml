@@ -2295,6 +2295,11 @@ source = "site/blocks/auth-passkey-sign-in.md"
 path = "/blocks/auth-passkey-sign-in/"
 
 [[section.group.page]]
+title = "auth-recovery-codes"
+source = "site/blocks/auth-recovery-codes.md"
+path = "/blocks/auth-recovery-codes/"
+
+[[section.group.page]]
 title = "auth-split-accent-panel"
 source = "site/blocks/auth-split-accent-panel.md"
 path = "/blocks/auth-split-accent-panel/"
