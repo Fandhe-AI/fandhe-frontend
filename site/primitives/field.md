@@ -8,7 +8,7 @@ ark-ui 準拠の 8 パーツに加え、イシュー #2185 で `group`（複数 
 
 **型付き autocomplete**
 
-`input_with_autocomplete` に `AutocompleteToken::new(AutocompleteField::Username).with_webauthn()` を渡すと、passkey ログインのユーザー名欄として `username webauthn` を出力します。`email` も指定できます（`email webauthn` は文法上は有効ですが、通常は使いません）。`extra_attrs` の `autocomplete` は大文字小文字を区別せず除去され、型付きの値が 1 個だけ出力されます。
+`input_with_autocomplete` に `AutocompleteToken::new(AutocompleteField::Username).with_webauthn()` を渡すと、passkey ログインのユーザー名欄として `username webauthn` を出力します。`email` も指定できます（`email webauthn` は文法上は有効ですが、通常は使いません）。`extra_attrs` の `autocomplete` は大文字小文字を区別せず除去され、型付きの値が 1 個だけ出力されます。語彙には単独の `off`（`AutocompleteToken::off()`）と `one-time-code` も含まれ、どちらも `webauthn` とは併用できません。
 
 `AutocompleteToken` は固定語彙で、任意の文字列を受け付けません。属性値に意図しない文字列が混ざる経路を型で閉じるためです。既存の `input` と `extra_attrs` の生文字列経路は互換のために残っていますが、新規のコードでは型付きの経路を使ってください。パスワード欄側の指定は [Password Input](./password-input.md) を参照してください。
 

@@ -25,12 +25,12 @@
 //!
 //! # `autocomplete` 等の属性値（固定リテラル）
 //!
-//! 型付き `autocomplete`（`input_with_autocomplete`）の語彙は
-//! username/email/current-password/new-password のみで `off` を表せないため、
-//! 既存 block と同じく `extra_attrs` へ `&'static str` のリテラルを渡す
-//! （任意文字列の経路は作らない）。`autocomplete="off"` は、1 回しか使えない
-//! 復旧コードがフォーム履歴へ残ることを避け、`one-time-code` による SMS・
-//! メール由来コードの自動入力候補が別の値を誘導することも避けるため。
+//! 型付き `autocomplete` の `input_with_autocomplete` に
+//! `AutocompleteToken::off()` を渡す（`off` は単独の語彙で、`webauthn` とは
+//! 併用できない）。属性値は静的リテラルのみで、任意文字列の経路は作らない。
+//! `autocomplete="off"` は、1 回しか使えない復旧コードがフォーム履歴へ残る
+//! ことを避け、`one-time-code` による SMS・メール由来コードの自動入力候補が
+//! 別の値を誘導することも避けるため。
 //! `autocapitalize="none"`/`spellcheck="false"` はコードの書き換えと下線を
 //! 防ぐ。英数字とハイフンの文字列なので `inputmode="numeric"` は付けない。
 //!
@@ -57,7 +57,9 @@ use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProp
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
-use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::input::{
+    self, AutocompleteToken, FieldIds, FieldProps, InputProps,
+};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
@@ -112,12 +114,12 @@ pub fn demo() -> Node {
         vec![],
         vec![
             field::label(&field_props, vec![], vec![text("Recovery code")]),
-            input::input(
+            input::input_with_autocomplete(
                 &InputProps::default(),
                 &field_props,
+                AutocompleteToken::off(),
                 vec![
                     ("type", "text"),
-                    ("autocomplete", "off"),
                     ("autocapitalize", "none"),
                     ("spellcheck", "false"),
                     ("placeholder", "xxxxx-xxxxx"),
@@ -247,6 +249,16 @@ mod tests {
             assert!(html.contains(expected), "demo should contain {expected}");
         }
         assert!(!html.contains("inputmode="));
+    }
+
+    /// 型付き語彙 `AutocompleteToken::off()` 経由で出力され、`one-time-code` を採用しないことを固定する。
+    #[test]
+    fn autocomplete_uses_typed_off_token() {
+        let html = demo_html();
+        let expected = format!("autocomplete=\"{}\"", AutocompleteToken::off().as_str());
+        assert_eq!(expected, "autocomplete=\"off\"");
+        assert!(html.contains(&expected));
+        assert!(!html.contains("one-time-code"));
     }
 
     /// `<form>`・`name`・事前入力 `value`・`data:` URI・ダミーリンクを出さないことを固定する。
