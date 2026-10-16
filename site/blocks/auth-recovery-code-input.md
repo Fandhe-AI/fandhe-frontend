@@ -26,7 +26,9 @@ use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProp
 use fandhe_frontend_pre_styled_ui::heading::{
     heading, HeadingLevel, HeadingProps, HeadingSize, HeadingWeight,
 };
-use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::input::{
+    self, AutocompleteToken, FieldIds, FieldProps, InputProps,
+};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkProps};
 use fandhe_frontend_pre_styled_ui::text::{self as styled_text, TextProps, TextSize, TextVariant};
 
@@ -81,12 +83,12 @@ pub fn demo() -> Node {
         vec![],
         vec![
             field::label(&field_props, vec![], vec![text("Recovery code")]),
-            input::input(
+            input::input_with_autocomplete(
                 &InputProps::default(),
                 &field_props,
+                AutocompleteToken::off(),
                 vec![
                     ("type", "text"),
-                    ("autocomplete", "off"),
                     ("autocapitalize", "none"),
                     ("spellcheck", "false"),
                     ("placeholder", "xxxxx-xxxxx"),
@@ -138,11 +140,10 @@ pub fn demo() -> Node {
   `one-time-code` は採用していません。SMS やメールで届いたワンタイム
   コードが自動入力の候補に出て、復旧コードとは別の値を入れる導線に
   なりうるためです。
-- **固定リテラルで渡す理由**: 型付きの `input_with_autocomplete` の語彙
-  （username / email / current-password / new-password）には該当する
-  トークンがなく、語彙の拡張は部品側の変更でスコープ外です。そのため
-  `extra_attrs` に `&'static str` のリテラルを渡し、任意文字列の経路は
-  作っていません。
+- **型付き語彙で渡す**: `input_with_autocomplete` に
+  `AutocompleteToken::off()` を渡します。語彙に `off` が加わった（#3859）
+  ため、`extra_attrs` へ生の `autocomplete` を渡す必要がなくなりました。
+  属性値は静的リテラルのみで、任意文字列の経路はありません。
 - **`type="text"`、`inputmode` なし**: 復旧コードは英数字とハイフンからなる
   ため、数字キーボードを出す `inputmode="numeric"` は付けません。
 - **`autocapitalize="none"` / `spellcheck="false"`**: コードの自動大文字化や

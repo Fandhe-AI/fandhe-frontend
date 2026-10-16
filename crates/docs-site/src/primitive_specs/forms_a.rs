@@ -1703,7 +1703,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         "aria-describedby は invalid のとき error id を先頭に、has_helper_text のとき helper id を続けて空白区切りで決定的に合成する（field.rs:249-258, 305-311）。",
         "invalid のとき input/textarea/select へ aria-invalid=\"true\" を付与し、error_text を表示状態にする（field.rs:118-119）。",
         "select はネイティブ readonly を出力しない（HTML 仕様上 <select readonly> が無効なため、data-readonly は他コントロール同様に出力する、field.rs:60-63）。バリデーションの実行自体は利用者側の通常の Rust コードが担い、本モジュールはその結果（invalid/エラーメッセージ）を構造・ARIA へ反映するのみである（`docs/policy/intentional-non-adoption.md` §3.25）。",
-        "`input_with_autocomplete` で `autocomplete` を固定語彙の型（`username webauthn` など、passkey ログインのユーザー名欄向け）で指定できる。任意の文字列を `autocomplete` へ渡す経路はなく、既存の `input` と `extra_attrs` の生文字列経路は互換のために残っている。",
+        "`input_with_autocomplete` で `autocomplete` を固定語彙の型（`username webauthn` など、passkey ログインのユーザー名欄向け。単独の `off` と `one-time-code` も語彙に含まれ、`webauthn` とは併用できない）で指定できる。任意の文字列を `autocomplete` へ渡す経路はなく、既存の `input` と `extra_attrs` の生文字列経路は互換のために残っている。",
         "error_text/required_indicator は非該当状態で hidden 存在属性を付与する fail-closed 描画とする（ark-ui の条件描画を SSR で静的に写像したもの、field.rs::error_text/required_indicator）。has_helper_text は zag.js の MutationObserver による動的検知を静的フラグへ写像したものであり、呼び出し側は実際に helper_text パーツを描画するかどうかと整合させる契約を持つ。",
     ],
     arguments: &[
@@ -1735,7 +1735,7 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             name: "input_with_autocomplete(props, token, extra_attrs)",
             kind: "&FieldProps, AutocompleteToken, ..",
             default: "",
-            description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken`（`username webauthn`・`email` 等）で指定する（イシュー #3816、field.rs の input_with_autocomplete）。任意文字列は受け付けず、`extra_attrs` の `autocomplete` は大文字小文字を区別せず除去される。",
+            description: "`input` の `autocomplete` を固定語彙の `AutocompleteToken`（`username webauthn`・`email` のほか、単独の `AutocompleteToken::off()`〔`off`〕と `OneTimeCode`〔`one-time-code`〕。この 2 つは `webauthn` と併用できない）で指定する（イシュー #3816、field.rs の input_with_autocomplete）。任意文字列は受け付けず、`extra_attrs` の `autocomplete` は大文字小文字を区別せず除去される。",
         },
         ArgRow {
             name: "group(attrs, children) / separator(attrs, content)",
