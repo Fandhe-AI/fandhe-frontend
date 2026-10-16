@@ -644,6 +644,7 @@ fn app_owned_ime_confirm_normalized_to_uppercase_dispatches_once() {
     target.dispatch_event(&extra).unwrap();
     assert_eq!(runtime.component().type_calls, 1, "二重 dispatch しない");
 }
+
 // ---------------------------------------------------------------------------
 // #3836: paste・keydown・IME・大文字化の網羅的な実ブラウザ検証
 // 対応表・目的写像そのものは `pin_input_native.rs` が native で検証済みのため、ここでは
