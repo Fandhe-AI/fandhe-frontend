@@ -290,7 +290,7 @@ const PIN_INPUT: ComponentPageSpec = ComponentPageSpec {
         KeyRow { key: "ArrowRight", description: "次の桁へフォーカスを移す（dispatch: `\"next\"`、最終桁なら留まる）。" },
         KeyRow { key: "Backspace", description: "現在桁を消去し、前の桁へフォーカスを移す（dispatch: `\"backspace\"`、先頭桁なら消去のみで留まる。ark-ui Keyboard Support 表準拠、イシュー #1615 で是正）。" },
         KeyRow { key: "Delete", description: "現在桁のみを消去する（dispatch: `\"delete\"`、フォーカスは移動しない）。" },
-        KeyRow { key: "Control+V / Cmd+V", description: "クリップボードの文字列を先頭桁から一括入力する（dispatch: `\"paste\"`）。全文字が `kind` に適合する場合のみ受理し、1 文字でも不適合なら部分適用せず一切拒否する。" },
+        KeyRow { key: "Control+V / Cmd+V", description: "クリップボードの文字列を先頭桁から一括入力する（dispatch: `\"paste\"`）。区切り文字（ASCII ハイフン `-` と空白類）を先に取り除き、残りの全文字が `kind` に適合し桁数以内の場合のみ受理し、それ以外は部分適用せず一切拒否する。区切り除去は入力補助であり、値の検証はアプリ側の責務である。" },
         KeyRow { key: "（実 DOM 配線）", description: "上記キー入力から dispatch への実配線（`keydown`/`paste` イベントの実 DOM ハンドラ）は `fandhe-frontend-wasm-full` 側の責務であり、本クレートのスコープ外（モジュール doc「スコープ外」節参照）。" },
     ],
     aria: &[

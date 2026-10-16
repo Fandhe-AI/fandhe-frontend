@@ -15,7 +15,7 @@
 | ArrowRight | Input | 次の桁へフォーカスを移します（dispatch: `"next"`、最終桁なら留まります）。 |
 | Backspace | Input | 現在桁を消去し、前の桁へフォーカスを移します（dispatch: `"backspace"`、先頭桁なら消去のみで留まります）。 |
 | Delete | Input | 現在桁のみを消去します（dispatch: `"delete"`、フォーカスは移動しません）。 |
-| Control+V / Cmd+V | Input | クリップボードの文字列を先頭桁から一括入力します（dispatch: `"paste"`）。全文字が `kind` に適合する場合のみ受理し、1 文字でも不適合なら部分適用せず一切拒否します。 |
+| Control+V / Cmd+V | Input | クリップボードの文字列を先頭桁から一括入力します（dispatch: `"paste"`）。区切り文字（ASCII ハイフン `-` と空白類）を先に取り除き、残りの全文字が `kind` に適合し桁数以内の場合のみ受理し、それ以外は部分適用せず一切拒否します。区切り除去は入力補助であり、値の検証はアプリ側の責務です。 |
 
 ポインタ・キーボード操作の実際の DOM 配線（`keydown`/`paste` イベントハンドラ、`fandhe-frontend-wasm-full`）は本部品のスコープ外です。本部品は SSR 静的マークアップと dispatch 契約のみを提供します。
 

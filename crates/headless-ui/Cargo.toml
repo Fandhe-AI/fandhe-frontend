@@ -685,7 +685,9 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #3816: field::input_with_autocomplete を追加し、AutocompleteField へ
 # Email variant と #[non_exhaustive] を追加する。公開 enum への variant 追加は
 # 網羅 match の利用者に対し 0.x 破壊的変更のためマイナーバンプする。
-version = "0.70.0"
+# イシュー #3832: pin_input の Paste が区切り文字（ハイフン・空白類）を除去してから
+# 桁へ分配するようになり、従来は拒否されていた入力が受理される挙動変更のためマイナーバンプする。
+version = "0.71.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
