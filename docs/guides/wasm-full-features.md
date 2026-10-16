@@ -1,9 +1,9 @@
 # wasm-full feature 選択ガイド
 
 本ドキュメントはイシュー #2330 を契機に作成しました。`fandhe-frontend-wasm-full`
-（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 32 件・
+（イシュー #2326/#2327）が持つ 2 軸の Cargo feature（配線群別 33 件・
 scope 別 16 件、いずれも既定 on。このほか別枠 9 件も既定 on で、既定の
-合計は 57 件）と、`fandhe-frontend-dist-server`
+合計は 58 件）と、`fandhe-frontend-dist-server`
 （イシュー #2329）が配布する最小構成を、利用者向けに一箇所へ集約します。
 機械可読な一次情報（対応表そのもの）は `crates/wasm-full/src/lib.rs`
 クレート doc・`crates/wasm-full/Cargo.toml` の `[features]` 直前コメント
@@ -55,6 +55,7 @@ scope 別 16 件、いずれも既定 on。このほか別枠 9 件も既定 on 
 | `Runtime::wire_splitter` | `splitter` |
 | `Runtime::wire_signature_pad` | `signature-pad` |
 | `Runtime::wire_number_input` | `number-input` |
+| `Runtime::wire_pin_input` | `pin-input` |
 | `Runtime::wire_command` | `command` |
 | `Runtime::wire_sidebar` | `sidebar` |
 | `Runtime::wire_chart` | `chart` |
@@ -368,7 +369,7 @@ feature 名は `headless::MAPPING_TABLE` の `scope` 文字列と一致します
 | `tree-view` | 2 | `"tree-view"`・tree 復元 |
 
 配線群別 feature である `sidebar`（MAPPING_TABLE 2 行）・`signature-pad`
-（同 1 行）も、それぞれ同名 feature で MAPPING_TABLE 行を追加ゲートします
+（同 1 行）・`pin-input`（同 1 行、境界行）も、それぞれ同名 feature で MAPPING_TABLE 行を追加ゲートします
 （上表とは別枠）。
 
 readonly RadioGroup の click capture 保護（`keynav::wire_readonly_click_guard`）
@@ -445,12 +446,12 @@ feature 名は、上記モジュール名と同じ文字列ですが、feature �
 **0.19.0 以降へアップグレードし `default-features = false` を使っている
 場合**、上記の配線・MAPPING_TABLE 行・keynav 分岐が既定では失われます。
 従来どおりの挙動を維持するには、`Cargo.toml` の依存指定へ `default` 配列
-と同じ 57 件を明示してください（`entry` 機能を使わないアプリは
+と同じ 58 件を明示してください（`entry` 機能を使わないアプリは
 `wasm-bindgen-exports` を省略できます）。
 
 ```toml
 [dependencies.fandhe-frontend-wasm-full]
-version = "0.46.0"
+version = "0.47.0"
 default-features = false
 features = [
   "wasm-bindgen-exports",
@@ -463,6 +464,7 @@ features = [
   "splitter",
   "signature-pad",
   "number-input",
+  "pin-input",
   "command",
   "sidebar",
   "chart",
@@ -554,7 +556,7 @@ wasm-bindgen-exports, collapsible, dialog, popover, tooltip, position, action-ke
   増分が小さく上限余裕を十分に残すため含めます（イシュー #3765、
   `wasm-full-architecture.md` §41.4）。
 - `action-keydown` 以外の配線群別 feature（avatar / clipboard / timer / angle-slider / splitter /
-  signature-pad / number-input / command / sidebar / chart / chart-range /
+  signature-pad / number-input / pin-input / command / sidebar / chart / chart-range /
   questionnaire / message-scroller / data-table / in-view / gesture）は対象外です。
 
 実測（ローカル、wasm-opt 適用済み）: `bundle-size: total_gzip_bytes=124556/200000
@@ -801,3 +803,65 @@ let tick = Closure::<dyn FnMut()>::new(|| {
     });
 });
 ```
+
+## 14. PinInput の入力配線（`pin-input` feature、イシュー #3834）
+
+`pin-input` feature は PinInput の桁 input への 1 文字入力と、状態機械が決めた桁へのフォーカス移動を
+配線します。貼り付け・Backspace/Delete/矢印キーは対象外です（#3835）。
+
+### 14.1 設計の原則
+
+入力の受理・拒否と `focused` の位置は状態機械（`PinInput`）だけが決めます。DOM 層は
+kind の判定・文字種の事前判定・大文字そろえ・ライブ `value` からの受理の推定を一切行わず、
+状態機械へ dispatch した後の状態（各桁の値と `focused`）を読み戻して DOM へ反映するだけです。
+
+### 14.2 ホストが実装する読み戻し（`BindingSource` の予約 field）
+
+状態の読み戻しは `Runtime` が `C` へ既に要求している `BindingSource` の予約 field で行います。
+`bound_value` から `fandhe_frontend_wasm_full::pin_input::parse_field` で field 名を解釈し、
+`bound_value_for` へ委譲してください。
+
+```rust
+impl BindingSource for MyHost {
+    fn bound_value(&self, field: &str) -> Option<BoundValue> {
+        let (ordinal, field) = pin_input::parse_field(field)?;
+        // ordinal は配線 root 配下の PinInput Root の文書順（0 起点）。
+        (ordinal == 0).then(|| pin_input::bound_value_for(&self.pin, field))
+    }
+}
+```
+
+実装しない（`None` を返す）場合は fail-closed になり、状態機械への dispatch は行われますが、
+DOM の値の反映とフォーカス移動は行われません（見た目はアプリの再描画に委ねます）。
+
+**予約 field の実装は事実上必須です。** 未実装だと拒否された文字が DOM の桁に残り、表示と状態がずれます。
+あわせて次を守ってください。
+
+- 桁 input の `value` を JS から直接読まない（拒否された文字を含みうる）。
+- フォーム送信値は `hidden_input`（状態機械の値）を使う。
+- `pin-input.` は予約接頭辞です。アプリ独自の field 名に使わず、`pin-input.<n>.digit.<i>` を表示用の
+  束縛（`data-bind-*`）に使わないでください（OTP が DOM へ露出します）。
+
+### 14.3 `data-action-input` を持つ桁（アプリ所有の経路）
+
+桁（または配線 root 内の祖先）に `data-action-input` を付けた場合、`input` の dispatch は
+アプリの action が担い、配線は何も dispatch しません（汎用の `"focus"` も送りません）。
+アプリの契約は次のとおりです。
+
+- action 名で桁を識別します（桁ごとに別名を付け、`update` で `Focus(i)` → `Input(c)` を順に適用する等）。
+- 桁の選択（クリック・Tab）の同期もアプリの責務です。
+- 予約 field を実装していれば、アプリの dispatch 後に値とフォーカスが読み戻しで反映されます。
+- 汎用経路（`data-action-input` なし）は 1 つの配線 root につき PinInput 1 つが前提です
+  （汎用の `"focus"`/`"input"` はインスタンス ID を持たないため）。同一 root に複数の PinInput を
+  置く場合は、各桁へインスタンスと桁を識別する `data-action-input` を付け、`bound_value` を
+  `parse_field` が返す ordinal（PinInput Root の文書順）ごとに答えてください。
+
+詳細な契約と設計判断は `crates/wasm-full/src/pin_input.rs` のモジュール doc を正とします。
+
+### 14.4 本配線が触れない入力と挙動の注意
+
+- 0 文字（ネイティブ Backspace/Delete）・2 文字以上（貼り付け・autofill）・IME 確定入力は、状態にも
+  DOM の値にも触れません（#3835 の担当）。IME は Chrome/Firefox で確定後に `input` が来ないため、
+  確定文字は状態へ渡らず DOM に残ります。DOM の値の書き込みは `input` のあった桁 1 つに限ります。
+- 配線は 1 root につき 1 回です。入れ子の配線 root では内側だけが反映します。
+- 1 打鍵で `"focus"` と `"input"` の 2 回 dispatch するため、`on_update` も 2 回走ります。

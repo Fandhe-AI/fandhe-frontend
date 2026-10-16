@@ -1599,3 +1599,48 @@ fn sidebar_trigger_disabled_is_noop() {
 fn sidebar_rail_disabled_is_noop() {
     assert_eq!(action_for_part(&part("sidebar", "rail", None, true)), None);
 }
+
+// --- PinInput 境界行（イシュー #3834）---
+
+#[cfg(feature = "pin-input")]
+#[test]
+fn pin_input_digit_without_data_value_is_fail_closed() {
+    use fandhe_frontend_headless_ui::pin_input::{input, PinInputKind, PinInputProps};
+
+    let html = render(&input(
+        0,
+        6,
+        "",
+        PinInputKind::Numeric,
+        false,
+        false,
+        &PinInputProps::default(),
+        false,
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "pin-input", "input");
+    // 桁 input は `data-value` を出さないため、境界行は単体では解決しない。
+    assert_eq!(
+        action_for_part(&part("pin-input", "input", None, false)),
+        None
+    );
+}
+
+#[cfg(feature = "pin-input")]
+#[test]
+fn pin_input_boundary_row_stops_ancestor_walk() {
+    // tree-view の内側に置いた PinInput の桁クリックが外側のブランチへ解決されない。
+    let parts = vec![
+        part("pin-input", "input", None, false),
+        part("tree-view", "branch", Some("x"), false),
+    ];
+    assert_eq!(action_from_parts(&parts), None);
+}
+
+#[cfg(feature = "pin-input")]
+#[test]
+fn pin_input_digit_with_explicit_data_value_resolves_to_focus() {
+    let action_ref = action_for_part(&part("pin-input", "input", Some("2"), false)).unwrap();
+    assert_eq!(action_ref.action, "focus");
+    assert_eq!(action_ref.payload, "2");
+}

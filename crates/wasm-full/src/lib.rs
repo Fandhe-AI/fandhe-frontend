@@ -205,6 +205,7 @@
 //! | `Runtime::wire_splitter` | `splitter` |
 //! | `Runtime::wire_signature_pad` | `signature-pad` |
 //! | `Runtime::wire_number_input` | `number-input` |
+//! | `Runtime::wire_pin_input` | `pin-input` |
 //! | `Runtime::wire_command` | `command` |
 //! | `Runtime::wire_sidebar` | `sidebar` |
 //! | `Runtime::wire_chart` | `chart` |
@@ -391,7 +392,7 @@
 //! # scope feature（イシュー #2327）
 //!
 //! 上記の配線群別 feature（`wire_*` 呼び出し単位）とは独立の第 2 軸
-//! として、`headless::MAPPING_TABLE`（18 scope・32 行）の各行と
+//! として、`headless::MAPPING_TABLE`（19 scope・33 行）の各行と
 //! `keynav::wire_keynav` 内部の `match scope` 分岐（13 arm）を、
 //! 部品（scope）単位の feature 16 件（既定 on）で cfg ゲートしている。
 //! 配線群別 feature は「その配線を呼ぶか否か」を切り替えるのに対し、
@@ -423,8 +424,8 @@
 //! | `tooltip` | 1 | なし |
 //! | `tree-view` | 2 | `"tree-view"`・`initialize_tree_roving_tabindex`・capture/bubble の tree 復元 |
 //!
-//! （既存の配線群別 feature である `sidebar`・`signature-pad` も、
-//! それぞれの MAPPING_TABLE 行〔2 行／1 行〕を同名 feature で追加ゲート
+//! （既存の配線群別 feature である `sidebar`・`signature-pad`・`pin-input` も、
+//! それぞれの MAPPING_TABLE 行〔2 行／1 行／1 行〕を同名 feature で追加ゲート
 //! する。新設 16 件との重複回避のため上表には含めない。）
 //!
 //! `tooltip`/`select`/`menu` 等の feature 名は MAPPING_TABLE 行・keynav
@@ -445,7 +446,7 @@
 //! `default-features = false` を使う利用者は、上記 16 feature が gate
 //! する MAPPING_TABLE 行・keynav 分岐を失う。従来どおりの挙動を維持
 //! するには、配線群別 14 feature に加えて上表の 16 feature（＋既存の
-//! `sidebar`・`signature-pad`）をすべて明示すること。
+//! `sidebar`・`signature-pad`・`pin-input`）をすべて明示すること。
 //!
 //! ## 新規 MAPPING_TABLE 行・keynav match arm を追加する場合の規約
 //!
@@ -509,6 +510,8 @@ pub mod message_scroller;
 pub mod nav;
 pub mod number_input;
 pub mod overlay;
+#[cfg(feature = "pin-input")]
+pub mod pin_input;
 pub mod position;
 pub mod questionnaire;
 #[cfg(feature = "scroll-driver")]
@@ -2107,6 +2110,13 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        #[cfg(feature = "pin-input")]
+        Self::wire_pin_input(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         #[cfg(feature = "command")]
         Self::wire_command(
             component.clone(),
@@ -2327,6 +2337,13 @@ where
         )?;
         #[cfg(feature = "number-input")]
         Self::wire_number_input(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        #[cfg(feature = "pin-input")]
+        Self::wire_pin_input(
             component.clone(),
             root.clone(),
             binding_table.clone(),
@@ -2986,6 +3003,48 @@ where
         >,
     ) -> Result<(), wasm_bindgen::JsValue> {
         number_input::wire_number_input_component(
+            root,
+            component,
+            move |state: &C, updated_root: &web_sys::Element| {
+                Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
+            },
+        )
+    }
+
+    /// PinInput（`fandhe-frontend-headless-ui` `pin_input` モジュール）の
+    /// 桁 input への入力と次桁へのフォーカス移動を
+    /// [`pin_input::wire_pin_input_component`] 経由で `root` へ配線する
+    /// （イシュー #3834）。`Self::mount`/`Self::hydrate` の双方から
+    /// `Self::wire_number_input` の直後に 1 回だけ呼ばれる。
+    ///
+    /// DOM 反映は `Self::apply_dirty_if_any`（`Self::wire_number_input` と同じ
+    /// 経路）に委ね、新しい反映経路を増やさない。貼り付け・keydown は #3835 の担当。
+    /// 入力の受理・拒否と `focused` は状態機械だけが決め、dispatch 後の状態（各桁の値と
+    /// `focused`）を `C` の `BindingSource::bound_value`（予約 field、
+    /// [`pin_input::parse_field`]/[`pin_input::bound_value_for`]）から読み戻して DOM へ
+    /// 反映する。予約 field を実装しないホストでは dispatch のみ行い DOM は触らない
+    /// （fail-closed、`crate::pin_input` モジュール doc 参照）。
+    ///
+    /// # fail-closed（PinInput 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に PinInput の桁 input が無ければ scope/part 判定で早期 return する。
+    ///
+    /// # Errors
+    ///
+    /// [`pin_input::wire_pin_input_component`]（`add_event_listener_with_callback`）の
+    /// 失敗を伝播する。
+    #[cfg(feature = "pin-input")]
+    fn wire_pin_input(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        pin_input::wire_pin_input_component(
             root,
             component,
             move |state: &C, updated_root: &web_sys::Element| {

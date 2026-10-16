@@ -159,8 +159,8 @@ fn headless_mapping_table_rows_carry_their_scope_feature_enabled_field() {
     }
 
     assert_eq!(
-        checked, 32,
-        "feature_gating_contract: MAPPING_TABLE の行数が想定 32 件から \
+        checked, 33,
+        "feature_gating_contract: MAPPING_TABLE の行数が想定 33 件から \
          変化した。新規行を追加した場合は本テストの期待値と \
          Cargo.toml の scope feature 対応表を追随更新すること"
     );
@@ -246,7 +246,7 @@ fn scope_features_referenced_in_source_are_declared_and_defaulted_in_cargo_toml(
     let cargo_toml_path = crate_root().join("Cargo.toml");
     let cargo_toml = fs::read_to_string(&cargo_toml_path).expect("Cargo.toml must be readable");
 
-    // headless.rs の 32 scope（重複あり）から一意集合を、keynav.rs の
+    // headless.rs の 33 scope（重複あり）から一意集合を、keynav.rs の
     // arm から導出した feature 名の一意集合と合成する。
     let headless_src = fs::read_to_string(crate_root().join("src/headless.rs")).unwrap();
     let mut scope_features: Vec<String> = Vec::new();
@@ -309,11 +309,11 @@ fn scope_features_referenced_in_source_are_declared_and_defaulted_in_cargo_toml(
 
     assert_eq!(
         scope_features.len(),
-        18,
+        19,
         "feature_gating_contract: headless.rs/keynav.rs から導出される \
-         scope feature の一意集合が想定 18 件（MAPPING_TABLE の 17 scope \
+         scope feature の一意集合が想定 19 件（MAPPING_TABLE の 18 scope \
          〔accordion, calendar, collapsible, combobox, dialog, menu, \
-         menubar, navigation-menu, popover, radio-group, select, \
+         menubar, navigation-menu, pin-input, popover, radio-group, select, \
          sidebar, signature-pad, tabs, toggle-group, tooltip, \
          tree-view〕+ keynav 専用の listbox）から変化した。\
          想定件数の見直しが必要"
@@ -391,4 +391,41 @@ fn readonly_click_guard_wiring_is_never_feature_gated() {
              付与されている（常時配線の不変条件への違反）"
         );
     }
+}
+
+/// イシュー #3834: `pin_input` モジュール宣言と `Runtime::wire_pin_input` の
+/// 3 箇所は、直前の意味のある行が `#[cfg(feature = "pin-input")]` でなければならない
+/// （feature off のビルドへ配線コードを含めない）。
+#[test]
+fn pin_input_module_and_wiring_calls_are_cfg_gated() {
+    let src = fs::read_to_string(crate_root().join("src/lib.rs")).expect("lib.rs readable");
+    let lines = meaningful_lines(&src);
+    let mut module_sites = 0usize;
+    let mut call_sites = 0usize;
+    for (pos, (_, line)) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        let is_module = trimmed == "pub mod pin_input;";
+        let is_call = trimmed == "Self::wire_pin_input(";
+        if !(is_module || is_call) {
+            continue;
+        }
+        if is_module {
+            module_sites += 1;
+        } else {
+            call_sites += 1;
+        }
+        let prev = pos
+            .checked_sub(1)
+            .map(|p| lines[p].1.trim())
+            .expect("a gate line must precede");
+        assert_eq!(
+            prev, "#[cfg(feature = \"pin-input\")]",
+            "feature_gating_contract: pin-input の配線が feature でゲートされていない"
+        );
+    }
+    assert_eq!(module_sites, 1, "pub mod pin_input; は 1 箇所のはず");
+    assert_eq!(
+        call_sites, 2,
+        "Self::wire_pin_input( は mount/hydrate の 2 箇所のはず"
+    );
 }
