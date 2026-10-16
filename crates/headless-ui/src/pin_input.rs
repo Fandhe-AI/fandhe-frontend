@@ -53,8 +53,10 @@
 //!   側が `attrs` で追加可能）。
 //! - zag connect のみの Home/End・同一キー再入力での前進
 //!   （`INPUT.ADVANCE`）・`Enter` 自動送信（`autoSubmit`）・
-//!   `blurOnComplete`/`selectOnFocus`/`sanitizeValue`/`pattern` は
-//!   クライアント DOM 配線・アプリロジックの関心（下記スコープ外節）。
+//!   `blurOnComplete`/`selectOnFocus`/`pattern` と任意の `sanitizeValue`
+//!   コールバックはクライアント DOM 配線・アプリロジックの関心（下記スコープ外節）。
+//!   貼り付け時の区切り文字（`-`・空白類）除去だけは固定集合で状態機械が担う
+//!   （文字種をそろえる入力補助でありデータ検証ではない。§3.25）。
 //! - `inputmode`（`otp || numeric` → 強制 `numeric`）・
 //!   `autocomplete="off"` の明示・`enterkeyhint`/`autocapitalize` は native
 //!   ヒントであり、既存の最小主義判断を維持する。
@@ -85,7 +87,8 @@
 //!   `drop_reserved` が fail-closed に除外する**（`data-invalid`/
 //!   `aria-invalid`/`data-index` 等をなりすまし付与できない）。
 //! - **未知 dispatch・種別不適合文字・部分適合しかしない paste は no-op**
-//!   （fail-closed。状態機械の不変条件「各桁は空文字列または `kind` に
+//!   （paste は区切り文字を先に除去し、区切り文字は桁値へ保存されない。
+//!   fail-closed。状態機械の不変条件「各桁は空文字列または `kind` に
 //!   適合する 1 文字のみ」を破る入力を一切適用しない）。
 //! - hydration 属性（`data-hydrate-values`/`data-hydrate-count`/
 //!   `data-hydrate-kind`）はクライアント側で改ざんされうる入力として扱う。
@@ -428,7 +431,15 @@ pub enum PinInputAction {
     Next,
     /// 指定した桁インデックスへフォーカスを移す。
     Focus(usize),
-    /// 先頭から一括で文字列を充填する（全文字が種別に適合する場合のみ）。
+    /// 先頭から一括で文字列を充填する。区切り文字（ASCII ハイフン `-` と
+    /// Unicode 空白類）を位置を問わず先に取り除き、残りの全文字が種別に適合し
+    /// 桁数以内の場合のみ受理する（それ以外は部分適用せず全体拒否）。
+    /// 例: `WDJB-MJHT`・`1234 5678`・末尾改行付き。非 ASCII のハイフン類
+    /// （U+2010 等）は除去せず種別不適合として拒否する。
+    ///
+    /// 区切り除去は文字種をそろえる入力補助であり、値の正当性検証（照合・
+    /// 有効期限等）はアプリ側の責務のまま（`docs/policy/intentional-non-adoption.md`
+    /// §3.25）。
     Paste(String),
     /// 全桁を消去する。
     Clear,
@@ -455,7 +466,37 @@ impl Default for PinInput {
     }
 }
 
+/// 貼り付け時に取り除く区切り文字かどうか（ASCII ハイフン `-` と Unicode 空白類）。
+///
+/// [`PinInputAction::Paste`] の前処理専用。どの [`PinInputKind`] の受理文字
+/// （ASCII 英数字）とも重ならないため、除去しても受理されるべき文字は消えず、
+/// 区切り文字が桁値へ保存されることもない。1 文字入力（`Input`）の判定
+/// （`is_valid_char`）は広げない。
+fn is_paste_separator(c: char) -> bool {
+    c == '-' || c.is_whitespace()
+}
+
 impl PinInput {
+    /// 貼り付け文字列から区切り文字を除去し、桁数・種別を検証した文字列を返す。
+    /// 空・桁数超過・種別不適合なら `None`（呼び出し元 `update` が全体拒否する）。
+    /// payload は信頼できない DOM 入力のため、`count + 1` 文字に達した時点で
+    /// 打ち切り、確保量を桁数に比例させる。
+    fn normalize_paste(&self, s: &str) -> Option<Vec<char>> {
+        let max = self.values.len();
+        let mut out: Vec<char> = Vec::new();
+        for c in s.chars().filter(|&c| !is_paste_separator(c)) {
+            if out.len() >= max || !self.kind.is_valid_char(c) {
+                return None;
+            }
+            out.push(c);
+        }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
+    }
+
     /// `data-hydrate-values` 属性名のフィールド部分。
     pub const FIELD_VALUES: &'static str = "values";
     /// `data-hydrate-count` 属性名のフィールド部分。
@@ -657,15 +698,12 @@ impl Component for PinInput {
                 }
             }
             PinInputAction::Paste(s) => {
-                let chars: Vec<char> = s.chars().collect();
-                // 空文字列・桁数超過・種別不適合文字混在は部分適用せず
-                // 一切拒否する（モジュール doc「fail-closed」節）。
-                if chars.is_empty() || chars.len() > self.values.len() {
+                // 区切り文字の除去 → 桁数・種別の検証を行い、条件を満たさない
+                // 貼り付けは部分適用せず一切拒否する（モジュール doc
+                // 「fail-closed」節）。
+                let Some(chars) = self.normalize_paste(&s) else {
                     return;
-                }
-                if !chars.iter().all(|&c| self.kind.is_valid_char(c)) {
-                    return;
-                }
+                };
                 for (i, slot) in self.values.iter_mut().enumerate() {
                     if let Some(c) = chars.get(i) {
                         *slot = c.to_string();
@@ -1402,6 +1440,112 @@ mod tests {
         let mut p = PinInput::new(4, PinInputKind::Numeric);
         assert!(dispatch(&mut p, "paste", ""));
         assert_eq!(p.value(), "");
+    }
+
+    #[test]
+    fn paste_strips_hyphen_for_alphanumeric_device_code() {
+        let mut p = PinInput::new(8, PinInputKind::Alphanumeric);
+        assert!(dispatch(&mut p, "paste", "WDJB-MJHT"));
+        assert_eq!(p.value(), "WDJBMJHT");
+        assert!(p.is_complete());
+        assert_eq!(p.focused_index(), Some(7));
+    }
+
+    #[test]
+    fn paste_strips_space_for_numeric_totp() {
+        let mut p = PinInput::new(8, PinInputKind::Numeric);
+        assert!(dispatch(&mut p, "paste", "1234 5678"));
+        assert_eq!(p.value(), "12345678");
+        assert!(p.is_complete());
+        assert_eq!(p.focused_index(), Some(7));
+    }
+
+    #[test]
+    fn paste_strips_surrounding_whitespace_newline_and_ideographic_space() {
+        for s in ["1234\n", " 12 34 ", "12\u{3000}34"] {
+            let mut p = PinInput::new(4, PinInputKind::Numeric);
+            assert!(dispatch(&mut p, "paste", s));
+            assert_eq!(p.value(), "1234", "{s:?}");
+        }
+    }
+
+    #[test]
+    fn paste_after_strip_shorter_than_count_focuses_next_empty() {
+        let mut p = PinInput::new(8, PinInputKind::Numeric);
+        assert!(dispatch(&mut p, "paste", "12345678"));
+        assert!(dispatch(&mut p, "paste", "12-34"));
+        assert_eq!(p.value(), "1234");
+        assert_eq!(p.focused_index(), Some(4));
+    }
+
+    #[test]
+    fn paste_rejects_separators_only_keeping_state() {
+        let mut p = PinInput::new(4, PinInputKind::Numeric);
+        for s in ["-", "---", " - - ", "\n"] {
+            assert!(dispatch(&mut p, "paste", s));
+            assert_eq!(p.value(), "");
+            assert_eq!(p.focused_index(), None);
+        }
+        assert!(dispatch(&mut p, "paste", "12"));
+        assert!(dispatch(&mut p, "paste", " - "));
+        assert_eq!(p.value(), "12");
+        assert_eq!(p.focused_index(), Some(2));
+    }
+
+    #[test]
+    fn paste_rejects_too_long_or_mismatch_after_strip() {
+        let mut p = PinInput::new(8, PinInputKind::Numeric);
+        assert!(dispatch(&mut p, "paste", "12"));
+        for s in ["1234-56789", "WDJB-MJHT", "12-3a"] {
+            assert!(dispatch(&mut p, "paste", s));
+            assert_eq!(p.value(), "12", "{s:?}");
+        }
+    }
+
+    #[test]
+    fn paste_rejects_non_ascii_hyphen() {
+        for s in ["1234\u{2010}5678", "1234\u{2212}5678"] {
+            let mut p = PinInput::new(8, PinInputKind::Numeric);
+            assert!(dispatch(&mut p, "paste", s));
+            assert_eq!(p.value(), "");
+        }
+    }
+
+    #[test]
+    fn input_separator_char_is_no_op() {
+        for kind in [PinInputKind::Numeric, PinInputKind::Alphanumeric] {
+            let mut p = PinInput::new(4, kind);
+            assert!(dispatch(&mut p, "input", "-"));
+            assert!(dispatch(&mut p, "input", " "));
+            assert_eq!(p.value(), "");
+            assert_eq!(p.focused_index(), None);
+            assert!(dispatch(&mut p, "focus", "1"));
+            assert!(dispatch(&mut p, "input", "-"));
+            assert_eq!(p.value(), "");
+            assert_eq!(p.focused_index(), Some(1));
+        }
+    }
+
+    #[test]
+    fn paste_separators_are_disjoint_from_all_kinds() {
+        for kind in [
+            PinInputKind::Numeric,
+            PinInputKind::Alphabetic,
+            PinInputKind::Alphanumeric,
+        ] {
+            for c in ['-', ' ', '\t', '\n', '\u{3000}'] {
+                assert!(is_paste_separator(c));
+                assert!(!kind.is_valid_char(c));
+            }
+        }
+    }
+
+    #[test]
+    fn hydration_roundtrip_after_separator_paste_has_no_separators() {
+        let mut p = PinInput::new(8, PinInputKind::Alphanumeric);
+        assert!(dispatch(&mut p, "paste", "WDJB-MJHT"));
+        let attrs = p.hydration_attrs();
+        assert!(attrs.iter().all(|(_, v)| !v.contains('-')));
     }
 
     #[test]

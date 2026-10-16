@@ -212,3 +212,11 @@ fn caller_attrs_payload_is_escaped_end_to_end() {
     ));
     assert!(!html.contains("onmouseover=\"alert(1)"));
 }
+
+#[test]
+fn paste_with_hyphen_distributes_digits_without_separator() {
+    let mut p = PinInput::new(8, PinInputKind::Alphanumeric);
+    assert!(dispatch(&mut p, "paste", "WDJB-MJHT"));
+    assert_eq!(p.value(), "WDJBMJHT");
+    assert!(p.is_complete());
+}
