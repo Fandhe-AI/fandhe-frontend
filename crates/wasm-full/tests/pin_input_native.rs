@@ -8,8 +8,8 @@
 use fandhe_frontend_headless_ui::pin_input::{PinInput, PinInputKind};
 use fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_wasm_full::pin_input::{
-    classify_input_value, input_accepted, input_dispatches, next_focus_index, parse_digit_index,
-    prefilter_char, resolve_kind, InputValue, KindResolution,
+    classify_input_value, input_dispatches, next_focus_index, parse_digit_index, prefilter_char,
+    resolve_kind, view_changed, InputValue, KindResolution,
 };
 
 #[test]
@@ -107,11 +107,9 @@ fn dispatch_sequence_fills_digit_via_state_machine() {
 }
 
 #[test]
-fn input_accepted_checks_rendered_value_attribute() {
-    assert!(input_accepted(Some("7"), '7'));
-    assert!(input_accepted(Some("K"), 'k'));
-    assert!(!input_accepted(Some(""), 'a'));
-    assert!(!input_accepted(None, 'a'));
-    assert!(!input_accepted(Some("1"), 'a'));
-    assert!(!input_accepted(Some("12"), '1'));
+fn view_changed_is_the_explicit_acceptance_signal() {
+    assert!(view_changed(Some("<a>"), Some("<b>")));
+    assert!(!view_changed(Some("<a>"), Some("<a>")));
+    assert!(!view_changed(None, Some("<a>")));
+    assert!(!view_changed(Some("<a>"), None));
 }

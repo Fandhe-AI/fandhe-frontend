@@ -58,7 +58,9 @@
 //! HTML 文字列は組み立てない（REQ-1）。`fandhe_frontend_interactive::dispatch` は
 //! 「復号できたか」しか返さず状態機械の受理・拒否は分からないため、拒否の検出は
 //! 事前フィルタ（`prefilter_char`）で担い、`data-hydrate-kind` が無く kind を知れない場合は
-//! 再描画後のライブ `value` で受理を確かめる（`input_accepted`。入力で更新されるのは `value` プロパティで属性ではない）。受理を確かめてからだけ次桁へ
+//! 入力 dispatch の前後で状態から描画したビューが変わったかで受理を確かめる（`view_changed`。
+//! ブラウザが設定済みのライブ `value` は受理の証拠にしない）。拒否は `events::wire_events` の
+//! bubble `input` dispatch にも渡さない（`events::INPUT_REJECTED_KEY` の拒否印）。受理を確かめてからだけ次桁へ
 //! フォーカスを移し、`data-action-input` 桁は bubble 側の dispatch 完了後（`setTimeout(0)`）に移す。dispatch 後に要素が差し替わりうるので、
 //! 要素参照は保持せず「何番目の pin-input root か」と `data-index` から引き直す。
 //!
@@ -156,16 +158,17 @@ pub fn prefilter_char(kind: KindResolution, c: char) -> Option<char> {
     }
 }
 
-/// 状態機械が入力を受理したかの事後判定。再描画後の桁 input のライブ `value` が
-/// 入力文字と（大文字小文字を除いて）一致すれば受理とみなす。
+/// 状態機械が入力を受理したかの事後判定。入力 dispatch の前後で状態から描画した
+/// ビュー（`Component::view` の描画結果）が変わったら受理とみなす。
 ///
-/// `data-hydrate-kind` が無い通常描画（`KindResolution::Unknown`）では事前フィルタが
-/// 状態機械の kind を知れないため、dispatch の戻り値（復号できたか）ではなく、
-/// 状態機械の結果が反映された DOM のライブ値で受理を確かめる。
+/// ブラウザが入力時に設定済みのライブ `value` や、再描画されない場合に残る属性値は
+/// 受理の証拠にならない（拒否された文字が残り続けるため）。状態機械の拒否は
+/// 状態を変えないので、ビューの差分が唯一の明示的な受理結果になる。
+/// 既存桁と同じ文字を打ち直した場合は状態が変わらず、拒否と同じ扱い（旧値は同一文字で
+/// 復元され、フォーカスは動かない）になる。
 #[must_use]
-pub fn input_accepted(rendered_value: Option<&str>, c: char) -> bool {
-    let mut chars = rendered_value.unwrap_or("").chars();
-    matches!((chars.next(), chars.next()), (Some(r), None) if r.eq_ignore_ascii_case(&c))
+pub fn view_changed(before: Option<&str>, after: Option<&str>) -> bool {
+    matches!((before, after), (Some(b), Some(a)) if b != a)
 }
 
 /// 次にフォーカスする桁。最終桁では留まる。`count == 0` なら `None`。
@@ -194,8 +197,8 @@ pub fn input_dispatches(index: usize, c: char) -> [ActionRef; 2] {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        classify_input_value, input_accepted, input_dispatches, next_focus_index,
-        parse_digit_index, prefilter_char, resolve_kind, InputValue, KindResolution, ACTION_FOCUS,
+        classify_input_value, input_dispatches, next_focus_index, parse_digit_index,
+        prefilter_char, resolve_kind, view_changed, InputValue, KindResolution, ACTION_FOCUS,
         INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
     };
     use crate::dom::has_disabled_ancestor;
@@ -213,6 +216,8 @@ mod wiring {
     }
 
     type SharedOnAction<F> = std::rc::Rc<std::cell::RefCell<F>>;
+    /// 状態から描画したビューの指紋（取得できなければ `None`）。受理判定に使う。
+    type Fingerprint = std::rc::Rc<dyn Fn() -> Option<String>>;
 
     fn is_part(element: &Element, part: &str) -> bool {
         element.get_attribute("data-scope").as_deref() == Some(PIN_INPUT_SCOPE)
@@ -317,13 +322,15 @@ mod wiring {
     pub fn wire_pin_input_events(
         root: Element,
         on_action: impl FnMut(ActionRef) -> bool + 'static,
+        fingerprint: impl Fn() -> Option<String> + 'static,
     ) -> Result<(), JsValue> {
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
+        let fingerprint: Fingerprint = std::rc::Rc::new(fingerprint);
 
         let input_root = root.clone();
         let input_on_action = on_action.clone();
         let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_input(&input_root, &event, &input_on_action);
+            handle_input(&input_root, &event, &input_on_action, &fingerprint);
         });
         // capture で登録し、`events::wire_events` の bubble `input` dispatch より前に
         // 大文字そろえ・値の復元を済ませる（正規化前の値が dispatch されるのを防ぐ）。
@@ -354,6 +361,7 @@ mod wiring {
         root: &Element,
         event: &Event,
         on_action: &SharedOnAction<F>,
+        fingerprint: &Fingerprint,
     ) {
         // IME 変換中は確定前の文字列を扱わない（fail-closed）。
         if event
@@ -378,6 +386,8 @@ mod wiring {
         };
         let kind = resolve_kind(instance_root.get_attribute("data-hydrate-kind").as_deref());
         if kind == KindResolution::Tampered {
+            // bubble 側の汎用 dispatch へも渡さない（fail-closed）。
+            crate::events::mark_input_rejected(event);
             return;
         }
         let Some(ordinal) = root_ordinal(root, &instance_root) else {
@@ -391,6 +401,9 @@ mod wiring {
             } else {
                 input.set_value("");
             }
+            // 復元後の旧値を `events::wire_events` の bubble 側が新規入力として dispatch
+            // しないよう拒否印を付ける（フォーカスも動かさない）。
+            crate::events::mark_input_rejected(event);
             return;
         };
         if normalized != c {
@@ -404,8 +417,11 @@ mod wiring {
             // （先に focus() すると focusin の "focus" dispatch で状態機械の focused が
             // 次桁へ移り、後続の "input" が次桁へ書かれる）。
             let deferred_root = root.clone();
+            let before = fingerprint();
+            let deferred_fp = fingerprint.clone();
             let cb = Closure::once_into_js(move || {
-                finish_input(&deferred_root, ordinal, index, count, normalized);
+                let accepted = view_changed(before.as_deref(), deferred_fp().as_deref());
+                finish_input(&deferred_root, ordinal, index, count, accepted);
             });
             let scheduled = web_sys::window().is_some_and(|w| {
                 w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 0)
@@ -419,11 +435,12 @@ mod wiring {
         }
         let [focus, value] = input_dispatches(index, normalized);
         call(on_action, focus);
-        if !call(on_action, value) {
-            restore_input(root, ordinal, index);
-            return;
-        }
-        finish_input(root, ordinal, index, count, normalized);
+        let before = fingerprint();
+        let dispatched = call(on_action, value);
+        // 受理は「入力 dispatch の前後で状態から描画したビューが変わったか」で判定する
+        // （ブラウザが設定済みのライブ値は受理の証拠にならない）。
+        let accepted = dispatched && view_changed(before.as_deref(), fingerprint().as_deref());
+        finish_input(root, ordinal, index, count, accepted);
     }
 
     /// `data-action-input` を持つ最寄りの祖先（自身を含む）が配線 root 内にあるか。
@@ -448,15 +465,10 @@ mod wiring {
         }
     }
 
-    /// dispatch と再描画の完了後に、ライブの `value`（再描画で要素が差し替わっていれば
-    /// 状態から描画し直された値）が入力文字と一致するかを確かめてから次桁へフォーカスを移す。
-    /// 一致しなければ（再描画で旧値へ戻された）旧値へ戻しフォーカスは動かさない。
-    /// 入力で更新されるのは `value` プロパティで `value` 属性ではないため、属性は見ない。
-    fn finish_input(root: &Element, ordinal: u32, index: usize, count: usize, c: char) {
-        let Some(el) = resolve_input(root, ordinal, index) else {
-            return;
-        };
-        if !input_accepted(Some(el.value().as_str()), c) {
+    /// 受理されたときだけ次桁へフォーカスを移す。拒否（状態が変わらなかった）なら
+    /// 桁 input を状態側の旧値（描画済み value 属性、無ければ空）へ戻しフォーカスは動かさない。
+    fn finish_input(root: &Element, ordinal: u32, index: usize, count: usize, accepted: bool) {
+        if !accepted {
             restore_input(root, ordinal, index);
             return;
         }
@@ -529,23 +541,34 @@ mod wiring {
     {
         let on_update = std::rc::Rc::new(std::cell::RefCell::new(on_update));
         let wired_root = root.clone();
-        wire_pin_input_events(root, move |action_ref: ActionRef| {
-            let Ok(mut state) = component.try_borrow_mut() else {
-                return false;
-            };
-            let dispatched = fandhe_frontend_interactive::dispatch(
-                &mut *state,
-                &action_ref.action,
-                &action_ref.payload,
-            );
-            if !dispatched {
-                return false;
-            }
-            if let Ok(mut cb) = on_update.try_borrow_mut() {
-                (cb)(&state, &wired_root);
-            }
-            true
-        })
+        let view_component = component.clone();
+        let fingerprint = move || {
+            view_component
+                .try_borrow()
+                .ok()
+                .map(|state| fandhe_frontend_core::render(&state.view()))
+        };
+        wire_pin_input_events(
+            root,
+            move |action_ref: ActionRef| {
+                let Ok(mut state) = component.try_borrow_mut() else {
+                    return false;
+                };
+                let dispatched = fandhe_frontend_interactive::dispatch(
+                    &mut *state,
+                    &action_ref.action,
+                    &action_ref.payload,
+                );
+                if !dispatched {
+                    return false;
+                }
+                if let Ok(mut cb) = on_update.try_borrow_mut() {
+                    (cb)(&state, &wired_root);
+                }
+                true
+            },
+            fingerprint,
+        )
     }
 }
 

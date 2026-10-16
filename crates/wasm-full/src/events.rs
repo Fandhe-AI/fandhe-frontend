@@ -843,6 +843,13 @@ pub fn action_from_keydown<T: AttrSource>(
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない。
 // ---------------------------------------------------------------------
+/// 配線層が「この `input` イベントは拒否済み（状態機械へ渡さない）」と印を付ける
+/// イベントオブジェクトのプロパティ名（`pin_input` の capture 側が付与し、
+/// 本モジュールの bubble `input` dispatch が読んで抑止する共有契約）。
+/// `stopPropagation` を使わないのは、他の購読者の到達を妨げないため。
+#[cfg(target_arch = "wasm32")]
+pub(crate) const INPUT_REJECTED_KEY: &str = "__fandheInputRejected";
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
@@ -1254,6 +1261,11 @@ mod wiring {
         click_closure.forget();
 
         let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            // capture 側の配線（pin_input の事前フィルタ等）が拒否した入力は dispatch しない
+            // （復元後の旧値を新規入力として dispatch してしまうのを防ぐ）。
+            if super::is_input_rejected(&event) {
+                return;
+            }
             // IME 変換中は dispatch を延期する（イシュー #2069 codex-review
             // P1 是正）。本リスナーは `root` へ登録された唯一の "input"
             // ハンドラであり、`data-action-input` を持つ input
@@ -1507,6 +1519,25 @@ mod wiring {
         closure.forget();
         Ok(())
     }
+}
+
+/// `input` イベントに拒否印を付ける（[`INPUT_REJECTED_KEY`]）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn mark_input_rejected(event: &web_sys::Event) {
+    let _ = js_sys::Reflect::set(
+        event,
+        &wasm_bindgen::JsValue::from_str(INPUT_REJECTED_KEY),
+        &wasm_bindgen::JsValue::TRUE,
+    );
+}
+
+/// `input` イベントが拒否印付きか。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn is_input_rejected(event: &web_sys::Event) -> bool {
+    js_sys::Reflect::get(event, &wasm_bindgen::JsValue::from_str(INPUT_REJECTED_KEY))
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
 }
 
 #[cfg(target_arch = "wasm32")]
