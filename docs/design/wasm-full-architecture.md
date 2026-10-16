@@ -3397,7 +3397,12 @@ JS から直接読まない・送信値は `hidden_input` を使う・`pin-input
 - 貼り付け候補と 2 文字以上の値は 256 文字（`MAX_PASTE_CHARS`）で打ち切り判定し、超過は dispatch しない
   （資源上限であって値の検証ではない。区切り除去・大文字そろえは状態機械、値の正しさはアプリの責務、§3.25）。
 
-### 42.3 スコープ外
+### 42.3 実ブラウザ検証
 
-- 実ブラウザでの貼り付け・keydown・IME・大文字表示の網羅的な検証: #3836
+- 貼り付け（区切り除去・大文字化・拒否・短い貼り付け）・矢印キー・Backspace/Delete・修飾キー/変換中の keydown・
+  IME 確定・RFC 8628 想定の一連操作は `crates/wasm-full/tests/pin_input_browser.rs` が実ブラウザ（headless Chrome）で
+  検証済み（#3836）。実機 IME と Safari の手動確認は合成イベントでは再現しきれず対象外。
+
+### 42.4 スコープ外
+
 - 同一 root 内の複数 PinInput の区別（汎用経路は 1 root : 1 状態機械。複数は `data-action-input` + ordinal 別の `bound_value`）
