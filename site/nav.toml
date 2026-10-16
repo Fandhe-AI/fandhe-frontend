@@ -2270,6 +2270,11 @@ path = "/blocks/form-layout-two-column/"
 title = "Auth"
 
 [[section.group.page]]
+title = "auth-device-approve"
+source = "site/blocks/auth-device-approve.md"
+path = "/blocks/auth-device-approve/"
+
+[[section.group.page]]
 title = "auth-dropdown-panel"
 source = "site/blocks/auth-dropdown-panel.md"
 path = "/blocks/auth-dropdown-panel/"
@@ -2285,6 +2290,11 @@ source = "site/blocks/auth-otp-verify.md"
 path = "/blocks/auth-otp-verify/"
 
 [[section.group.page]]
+title = "auth-passkey-manage"
+source = "site/blocks/auth-passkey-manage.md"
+path = "/blocks/auth-passkey-manage/"
+
+[[section.group.page]]
 title = "auth-passkey-sign-in"
 source = "site/blocks/auth-passkey-sign-in.md"
 path = "/blocks/auth-passkey-sign-in/"
@@ -2293,6 +2303,11 @@ path = "/blocks/auth-passkey-sign-in/"
 title = "auth-recovery-code-input"
 source = "site/blocks/auth-recovery-code-input.md"
 path = "/blocks/auth-recovery-code-input/"
+
+[[section.group.page]]
+title = "auth-recovery-codes"
+source = "site/blocks/auth-recovery-codes.md"
+path = "/blocks/auth-recovery-codes/"
 
 [[section.group.page]]
 title = "auth-split-accent-panel"
@@ -2308,6 +2323,11 @@ path = "/blocks/auth-split-photo-testimonial/"
 title = "auth-tabs-card"
 source = "site/blocks/auth-tabs-card.md"
 path = "/blocks/auth-tabs-card/"
+
+[[section.group.page]]
+title = "auth-totp-enroll"
+source = "site/blocks/auth-totp-enroll.md"
+path = "/blocks/auth-totp-enroll/"
 
 [[section.group.page]]
 title = "login-01"

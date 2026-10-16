@@ -9,14 +9,18 @@
 //! block ごとの追加経緯は git 履歴と PR を正とし、本コメントには書かない
 //! （並列 PR が同じ行を書き換えて競合するため、§18 参照）。
 
+mod auth_device_approve;
 mod auth_dropdown_panel;
 mod auth_oauth_consent;
 mod auth_otp_verify;
+mod auth_passkey_manage;
 mod auth_passkey_sign_in;
 mod auth_recovery_code_input;
+mod auth_recovery_codes;
 mod auth_split_accent_panel;
 mod auth_split_photo_testimonial;
 mod auth_tabs_card;
+mod auth_totp_enroll;
 mod login_01;
 mod login_04;
 mod signup_01;
@@ -25,14 +29,18 @@ use crate::blocks::Block;
 
 pub(super) fn blocks() -> Vec<Block> {
     vec![
+        auth_device_approve::BLOCK,
         auth_dropdown_panel::BLOCK,
         auth_oauth_consent::BLOCK,
         auth_otp_verify::BLOCK,
+        auth_passkey_manage::BLOCK,
         auth_passkey_sign_in::BLOCK,
         auth_recovery_code_input::BLOCK,
+        auth_recovery_codes::BLOCK,
         auth_split_accent_panel::BLOCK,
         auth_split_photo_testimonial::BLOCK,
         auth_tabs_card::BLOCK,
+        auth_totp_enroll::BLOCK,
         login_01::BLOCK,
         login_04::BLOCK,
         signup_01::BLOCK,
