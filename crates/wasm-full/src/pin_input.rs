@@ -11,6 +11,113 @@
 //! 貼り付け・Backspace/Delete/矢印キー・実ブラウザ検証は後続の #3835/#3836 の担当で、
 //! 本モジュールは `paste`/`keydown` に一切触れない。
 //!
+//! # 不変条件（本モジュールの設計の核）
+//!
+//! **入力の受理・拒否と `focused` の位置は状態機械（`PinInput`）だけが決める。**
+//! DOM 層は状態機械の判断を推測せず、判断した後の状態（各桁の値と `focused`）を
+//! 読み戻して DOM へ反映するだけにする。したがって本モジュールは次を行わない。
+//!
+//! - kind（`data-hydrate-kind`）の解決・文字種の事前判定・大文字そろえ
+//!   （状態機械の `normalize_char` / `is_valid_char` が唯一の判定者）。
+//! - ライブ `value`・`value` content attribute・文字比較からの受理の推定。
+//! - 「受理されたら次桁（`index + 1`）」といった `focused` の推測。
+//!
+//! 流れは `input`（capture: 入力された桁の場所と 1 文字の記録のみ）→ 状態機械へ dispatch
+//! （bubble）→ 状態の読み戻し → DOM 反映（各桁の値とフォーカス）の 1 本道で、判断は
+//! 状態機械の中にしかない。受理・拒否・文字種判定・大文字そろえ・同じ文字の打ち直し・
+//! `focused` の前進は、すべて状態機械の結果として値とフォーカスに現れる。
+//!
+//! # 読み戻しの契約（`BindingSource` の予約 field）
+//!
+//! 正準ビューは `focused` を持たず、`Runtime<C>` の `C` はアプリ固有のホスト型のため、
+//! 状態の読み戻しは `Runtime` が既に `C` へ要求している
+//! [`fandhe_frontend_wasm_client::BindingSource`] の予約 field で行う
+//! （新しい trait 境界を `Runtime` に足さない）。ホストは `bound_value` から
+//! [`parse_field`] で field 名を解釈し [`bound_value_for`] へ委譲する。
+//!
+//! | field（[`field_name`]） | 値 |
+//! |---|---|
+//! | `pin-input.<n>.focused` | `Text(focused の桁番号)`。未設定は `Text("")` |
+//! | `pin-input.<n>.digit.<i>` | `Text(桁 i の値)`。未入力は `Text("")` |
+//!
+//! `<n>` は配線 root 配下の PinInput Root の文書順（0 起点。配線 root 自身が Root ならそれが 0）。
+//! 1 つでも読めない（`None`・形式不正・桁数超過）場合は **fail-closed**: 値もフォーカスも DOM を
+//! 書き換えず、状態機械への dispatch だけを行う（見た目はアプリの再描画に委ねる。
+//! `focusin` のみ、ユーザーが選んだ桁へフォーカスを戻す）。
+//!
+//! **予約 field の実装は事実上必須**。未実装だと、拒否された文字が DOM の桁に残り、表示と
+//! 状態がずれる（fail-closed は「DOM を書かない」であって「見た目を保証する」ではない）。
+//! したがって次を守ること。
+//!
+//! - 桁 input の `value` を JS から直接読まない（拒否された文字を含みうる）。
+//! - フォーム送信値は `hidden_input`（状態機械の値）を使う。
+//! - `pin-input.` は予約接頭辞のため、アプリ独自の `BindingSource` field 名に使わない。
+//!   `pin-input.<n>.digit.<i>` を表示用の束縛（`data-bind-*`）に使わない（OTP が DOM へ露出する）。
+//!
+//! 再描画で要素が差し替わっても追えるよう、要素参照は保持せず「何番目の Root か」と
+//! `data-index` から引き直す。
+//!
+//! # dispatch とアクションの対応
+//!
+//! | DOM イベント | 条件 | アクション | payload |
+//! |---|---|---|---|
+//! | `input`（桁 input） | 値がちょうど 1 文字（Root 内で操作可能） | `"focus"` → `"input"` | `data-index` → その 1 文字（無加工） |
+//! | `focusin`（桁 input） | `data-index` が桁数未満 | `"focus"` | `data-index` |
+//!
+//! `"focus"` を `"input"` の直前に送るのは、アプリ状態の focused が古くても DOM で入力された桁へ
+//! 書き込ませるため。0 文字（削除系）と 2 文字以上（autofill・`insertFromPaste`）は何もしない
+//! （DOM の値も消さない）。これらは #3835 が `"paste"` 等へ接続する。
+//!
+//! # 本モジュールが状態にも DOM の値にも触れない入力（#3835 の担当）
+//!
+//! - 0 文字（ネイティブの Backspace/Delete）・2 文字以上（貼り付け・autofill）: dispatch せず、
+//!   DOM の値も書き換えない。状態機械は変わらないため、DOM と状態が食い違ったままになりうる。
+//! - **IME 確定入力は未対応**: `isComposing` 中の `input` は無視する。Chrome・Firefox では
+//!   `isComposing=true` の最後の `input` の後に `compositionend` が来て、その後に `input` は来ないため、
+//!   確定した文字は状態機械へ渡らず DOM に残る。`compositionstart`/`compositionend` の扱いは #3835
+//!   で実装する（`events::wire_events` の `compositionend` 補完〔#2069〕は `data-action-input` 経路用で、
+//!   汎用経路の桁には効かない）。
+//!
+//! DOM の値の書き込みは「`input` のあった桁 1 つ」に限る（ネイティブ削除済みの別の桁の値を
+//! 状態から復活させないため）。
+//!
+//! # `data-action-input` を持つ桁（アプリ所有の経路）
+//!
+//! 桁 input（または配線 root 内の祖先）に `data-action-input` がある場合、`input` の dispatch は
+//! `crate::events::wire_events` とアプリの action が担う。この経路では本モジュールは
+//! **何も dispatch しない**（`input` も汎用 `"focus"` も。汎用 `"focus"` は payload に
+//! インスタンス情報を持たず、複数インスタンスのアプリで別状態を書き換えうるため）。
+//! その代わり、アプリの dispatch が終わった後に（`Runtime::mount`/`hydrate` は
+//! `wire_events` より後にこの配線を登録するため、同一 `input` イベントの bubble 段で
+//! `wire_events` の後に実行される）、他の経路と同じ読み戻しで値とフォーカスだけを反映する。
+//! アプリ側の契約は次のとおり。
+//!
+//! - action 名（`data-action-input` の値）で桁を識別すること（桁ごとに別名を付け、
+//!   ホストの `update` で `Focus(i)` → `Input(c)` を順に適用する等）。汎用イベントは `data-index` を送らない。
+//! - `focusin` では本モジュールは何も dispatch しないため、桁の選択（クリック・Tab）の同期もアプリの責務。
+//! - 読み戻し field を実装しなければ、フォーカス移動と値の反映は行われない。
+//!
+//! # 配線の回数・入れ子・dispatch 回数
+//!
+//! - 配線は 1 root につき 1 回。入れ子の配線 root では capture の記録（`PENDING`）が 1 スロットのため、
+//!   内側の配線だけが反映する。
+//! - 1 打鍵で `"focus"` と `"input"` の 2 回 dispatch するため、`on_update` も 2 回走る。
+//!
+//! # 複数インスタンス
+//!
+//! 汎用経路（`data-action-input` なし）の `"focus"`/`"input"` は payload にインスタンス ID を
+//! 持たないため、**1 つの配線 root につき PinInput は 1 つ**（1 root : 1 状態機械）が前提。
+//! 同一 root に複数の PinInput を置く場合は、各桁へ `data-action-input`（インスタンスと桁を
+//! 識別する action 名）を付け、ホストの `bound_value` を [`parse_field`] の `<n>`（Root の文書順）
+//! に応じて各インスタンスの状態から答えること。
+//!
+//! # `MAPPING_TABLE` 境界行との役割分担
+//!
+//! `crate::headless::MAPPING_TABLE` の `(pin-input, input)` 行は `data-value` を持たない
+//! 現行マークアップでは常に解決されない「境界行」であり、pin-input を他のクリック可能な
+//! 部品の内側に置いたとき祖先探索が外側の部品へ抜けるのを防ぐためだけに存在する。
+//! 桁番号の同期は本モジュールの `focusin` リスナーが担う。
+//!
 //! # 設計（`number_input.rs` と同型の 2 層構成）
 //!
 //! - 純粋ロジック層（本ファイル直下の `pub` 関数）は web-sys に依存せず、
@@ -21,66 +128,22 @@
 //! ごとゲートされる（feature off のビルドへ配線コードを含めない、イシュー #3834
 //! の受け入れ条件。`number_input` がモジュールをゲートしないのとは意図的に異なる）。
 //!
-//! # dispatch とアクションの対応
-//!
-//! | DOM イベント | 条件 | アクション | payload |
-//! |---|---|---|---|
-//! | `input`（桁 input） | 値がちょうど 1 文字で kind に適合 | `"focus"` → `"input"` | `data-index` → その 1 文字 |
-//! | `focusin`（桁 input） | `data-index` が桁数未満 | `"focus"` | `data-index` |
-//!
-//! `"focus"` を `"input"` の直前に送るのは、アプリ状態の focused が古くても正しい桁へ
-//! 書き込ませるため（`number_input` が増減前に `"set"` で同期するのと同じ考え方）。
-//! 受理された入力のあと、次の桁（`min(index + 1, count - 1)`）へ DOM フォーカスを移す。
-//! 0 文字（削除系）と 2 文字以上（autofill・`insertFromPaste`）は何もしない
-//! （DOM の値も消さない）。これらは #3835 が `"paste"` 等へ接続する。
-//!
-//! # `MAPPING_TABLE` 境界行との役割分担
-//!
-//! `crate::headless::MAPPING_TABLE` の `(pin-input, input)` 行は `data-value` を持たない
-//! 現行マークアップでは常に解決されない「境界行」であり、pin-input を他のクリック可能な
-//! 部品の内側に置いたとき祖先探索が外側の部品へ抜けるのを防ぐためだけに存在する。
-//! 桁番号の同期は本モジュールの `focusin` リスナーが担う。
-//!
-//! # 二重 dispatch の回避
-//!
-//! 桁 input に `data-action-input` がある場合は `crate::events::wire_events` が `input`
-//! の dispatch を担うため、本モジュールは dispatch せずフォーカス移動だけを行う。
-//! 同一 root に複数の PinInput を置く場合のインスタンス区別も、この上書き名で回避する
-//! （payload にインスタンス ID が無いため、本モジュール単独では 1 root : 1 状態機械の
-//! 簡略化が前提）。同じ理由で `data-action-input` 桁の `focusin` では汎用 "focus" を
-//! dispatch せず、フォーカス位置の同期もアプリ側の action に委ねる。
-//!
-//! # DOM 同期契約
-//!
-//! 桁の値・`data-filled`・`data-complete`・hidden-input の反映は、アプリの `C` が dirty を
-//! 立てて `apply_dirty_if_any` の再描画経路で行う。本モジュールが DOM を直接書くのは
-//! 大文字そろえ kind の表示補正と、kind に適合しない文字の旧値復元（描画済み value 属性、無ければ空）の 2 点だけで、
-//! いずれも `HtmlInputElement::set_value`（ASCII 英数字 1 文字または空文字）に限る。
-//! HTML 文字列は組み立てない（REQ-1）。`fandhe_frontend_interactive::dispatch` は
-//! 「復号できたか」しか返さず状態機械の受理・拒否は分からないため、拒否の検出は
-//! 事前フィルタ（`prefilter_char`）で担い、`data-hydrate-kind` が無く kind を知れない場合は
-//! 入力 dispatch の前後で状態から描画したビューが変わったか、または同じ文字の打ち直し（旧値と同一で
-//! 状態は変わらないが受理される）かで受理を確かめる（`input_accepted`。
-//! ブラウザが設定済みのライブ `value` は受理の証拠にしない）。拒否は `events::wire_events` の
-//! bubble `input` dispatch にも渡さない（`events::INPUT_REJECTED_KEY` の拒否印）。受理を確かめてからだけ次桁へ
-//! フォーカスを移し、`data-action-input` 桁は bubble 側の dispatch 完了後（`setTimeout(0)`）に移す。dispatch 後に要素が差し替わりうるので、
-//! 要素参照は保持せず「何番目の pin-input root か」と `data-index` から引き直す。
-//!
 //! # `docs/policy/intentional-non-adoption.md` §3.25 との整理
 //!
-//! kind に応じた文字種の事前判定と大文字そろえは入力補助であり、データ検証ではない。
-//! 値の正しさの検証はアプリ側の責務のまま。規則は `PinInputKind::{normalize_char,
-//! is_valid_char}` を直接呼び、複製しない。
+//! 本モジュールは文字種の判定も値の検証も行わない。値の正しさ（kind への適合）は
+//! 状態機械とアプリ側の責務のままである。
 //!
 //! # セキュリティ不変条件
 //!
 //! - `input.value` は先頭 2 文字までしか読まない。`data-index` は `usize` へパースし桁数未満を
-//!   検査する（fail-closed）。`data-hydrate-kind` が解釈不能なら改ざんとみなして何もしない。
-//! - リスナーは配線 1 回につき 2 個（`Closure::forget` 2 回）で固定する。
+//!   検査する（fail-closed）。DOM へ書く値は状態機械が返した桁の値（1 文字以下）に限り、
+//!   `HtmlInputElement::set_value` のみを使う。HTML 文字列は組み立てない（REQ-1）。
+//! - リスナーは配線 1 回につき 3 個（`Closure::forget` 3 回: `input` capture・`input` bubble・`focusin`）で固定する。
 //! - PIN/OTP は秘密値のため、値・payload を console やエラーに出さない。
 
 use crate::events::ActionRef;
-use fandhe_frontend_headless_ui::pin_input::PinInputKind;
+use fandhe_frontend_headless_ui::pin_input::PinInput;
+use fandhe_frontend_wasm_client::BoundValue;
 
 /// PinInput の `data-scope` 属性値。
 pub const PIN_INPUT_SCOPE: &str = "pin-input";
@@ -93,6 +156,9 @@ pub const ACTION_INPUT: &str = "input";
 /// 桁へのフォーカス同期アクション名（`PinInput::decode_action`）。
 pub const ACTION_FOCUS: &str = "focus";
 
+/// `BindingSource` 予約 field の接頭辞（モジュール doc「読み戻しの契約」参照）。
+const FIELD_PREFIX: &str = "pin-input.";
+
 /// `input` イベント後の `input.value` の分類（先頭 2 文字だけを読んだ結果）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputValue {
@@ -104,17 +170,6 @@ pub enum InputValue {
     Multi,
 }
 
-/// `data-hydrate-kind` の解決結果。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KindResolution {
-    /// 解釈できた kind（規則は headless-ui を正とする）。
-    Known(PinInputKind),
-    /// 属性が無く kind が分からない（ASCII 英数字の上位集合で事前判定する）。
-    Unknown,
-    /// 属性はあるが解釈できない（改ざんとみなして何もしない）。
-    Tampered,
-}
-
 /// `data-index` の生文字列を桁数未満の `usize` へパースする（それ以外は `None`）。
 #[must_use]
 pub fn parse_digit_index(raw: Option<&str>, count: usize) -> Option<usize> {
@@ -123,6 +178,9 @@ pub fn parse_digit_index(raw: Option<&str>, count: usize) -> Option<usize> {
 }
 
 /// `input.value` を先頭 2 文字だけ読んで分類する（巨大な値でも確保量は増えない）。
+///
+/// 分類は「どのアクションへ送るか（1 文字入力か、#3835 の担当か）」の振り分けだけで、
+/// 受理・拒否の判定ではない（文字種の判定は状態機械が行う）。
 #[must_use]
 pub fn classify_input_value(value: &str) -> InputValue {
     let mut chars = value.chars();
@@ -133,77 +191,8 @@ pub fn classify_input_value(value: &str) -> InputValue {
     }
 }
 
-/// Root の `data-hydrate-kind` 属性値を [`KindResolution`] へ解決する。
-#[must_use]
-pub fn resolve_kind(hydrate_kind: Option<&str>) -> KindResolution {
-    match hydrate_kind {
-        None => KindResolution::Unknown,
-        Some(raw) => {
-            PinInputKind::parse(raw).map_or(KindResolution::Tampered, KindResolution::Known)
-        }
-    }
-}
-
-/// 事前フィルタ。dispatch してよい場合は正規化後の文字、そうでなければ `None`。
-///
-/// 状態機械が受理しうる文字はどの kind でも ASCII 英数字だけなので、kind 不明のときも
-/// ASCII 英数字以外は弾く（多層防御。最終判定は状態機械）。
-#[must_use]
-pub fn prefilter_char(kind: KindResolution, c: char) -> Option<char> {
-    match kind {
-        KindResolution::Known(k) => {
-            let normalized = k.normalize_char(c);
-            k.is_valid_char(normalized).then_some(normalized)
-        }
-        KindResolution::Unknown => c.is_ascii_alphanumeric().then_some(c),
-        KindResolution::Tampered => None,
-    }
-}
-
-/// 状態から描画したビューが入力 dispatch の前後で変わったか。
-///
-/// ブラウザが入力時に設定済みのライブ `value` や、再描画されない場合に残る属性値は
-/// 受理の証拠にならない（拒否された文字が残り続けるため）。ただし既存桁と同じ文字の
-/// 打ち直しは受理されてもビューが変わらないため、受理判定には [`input_accepted`] を使う。
-#[must_use]
-pub fn view_changed(before: Option<&str>, after: Option<&str>) -> bool {
-    matches!((before, after), (Some(b), Some(a)) if b != a)
-}
-
-/// 状態機械が 1 文字入力を受理したかの事後判定。
-///
-/// - ビューが変われば受理。
-/// - ビューが変わらなくても、入力文字が dispatch 前に描画済みだった桁の値（`prev_digit`、
-///   描画済み value 属性）と同一なら受理（同じ文字の打ち直し。その値は既に種別に適合
-///   しているため状態機械は拒否せず、`focused` だけが次桁へ進む）。
-/// - それ以外でビューが変わらなければ拒否（種別不適合などで状態が変わっていない）。
-///
-/// ビュー取得に失敗（`None`）した場合は受理と見なさない（fail-closed）。
-#[must_use]
-pub fn input_accepted(
-    before: Option<&str>,
-    after: Option<&str>,
-    typed: char,
-    prev_digit: &str,
-) -> bool {
-    if view_changed(before, after) {
-        return true;
-    }
-    before.is_some() && after.is_some() && {
-        let mut it = prev_digit.chars();
-        it.next() == Some(typed) && it.next().is_none()
-    }
-}
-
-/// 次にフォーカスする桁。最終桁では留まる。`count == 0` なら `None`。
-#[must_use]
-pub fn next_focus_index(index: usize, count: usize) -> Option<usize> {
-    count
-        .checked_sub(1)
-        .map(|last| index.saturating_add(1).min(last))
-}
-
-/// 1 文字入力で dispatch する列（`focus` → `input` の順）。
+/// 1 文字入力で dispatch する列（`focus` → `input` の順）。`c` は無加工で渡す
+/// （正規化・文字種判定は状態機械の責務）。
 #[must_use]
 pub fn input_dispatches(index: usize, c: char) -> [ActionRef; 2] {
     [
@@ -218,15 +207,143 @@ pub fn input_dispatches(index: usize, c: char) -> [ActionRef; 2] {
     ]
 }
 
+/// `BindingSource` の予約 field が指す状態の種別。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PinInputField {
+    /// 状態機械の `focused`（桁番号。未設定は空文字）。
+    Focused,
+    /// 桁 `i` の値（未入力は空文字）。
+    Digit(usize),
+}
+
+/// 予約 field 名を組み立てる（`pin-input.<n>.focused` / `pin-input.<n>.digit.<i>`）。
+#[must_use]
+pub fn field_name(ordinal: usize, field: PinInputField) -> String {
+    match field {
+        PinInputField::Focused => format!("{FIELD_PREFIX}{ordinal}.focused"),
+        PinInputField::Digit(i) => format!("{FIELD_PREFIX}{ordinal}.digit.{i}"),
+    }
+}
+
+/// 予約 field 名を `(Root の文書順, 種別)` へ解釈する。
+///
+/// [`field_name`] の出力と完全一致する正準形だけを受理する（`+0` や先頭 0 など
+/// 別表記は `None`。ホストの `bound_value` が未知 field へ `None` を返す契約と整合）。
+#[must_use]
+pub fn parse_field(name: &str) -> Option<(usize, PinInputField)> {
+    let rest = name.strip_prefix(FIELD_PREFIX)?;
+    let (ordinal_raw, kind_raw) = rest.split_once('.')?;
+    let ordinal = ordinal_raw.parse::<usize>().ok()?;
+    let field = if kind_raw == "focused" {
+        PinInputField::Focused
+    } else {
+        let index = kind_raw.strip_prefix("digit.")?.parse::<usize>().ok()?;
+        PinInputField::Digit(index)
+    };
+    (field_name(ordinal, field) == name).then_some((ordinal, field))
+}
+
+/// ホストの `BindingSource::bound_value` が予約 field を [`PinInput`] の状態から答えるための
+/// 委譲先（`parse_field` で解釈した種別を渡す）。範囲外の桁は空文字（`PinInput::digit` と同じ）。
+#[must_use]
+pub fn bound_value_for(pin: &PinInput, field: PinInputField) -> BoundValue {
+    match field {
+        PinInputField::Focused => BoundValue::Text(
+            pin.focused_index()
+                .map(|i| i.to_string())
+                .unwrap_or_default(),
+        ),
+        PinInputField::Digit(i) => BoundValue::Text(pin.digit(i).to_string()),
+    }
+}
+
+/// 状態機械が dispatch 後に持つ状態の読み戻し結果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PinInputSnapshot {
+    /// 状態機械の `focused`。
+    pub focused: Option<usize>,
+    /// 各桁の値（長さは桁数、空文字は未入力）。
+    pub digits: Vec<String>,
+}
+
+/// 予約 field をすべて読んで [`PinInputSnapshot`] を作る。
+///
+/// 1 つでも読めない・形式が不正（`Text` 以外、1 文字超の桁、桁数以上の `focused`）なら
+/// `None`（fail-closed。モジュール doc「読み戻しの契約」）。
+pub fn snapshot_from_bound(
+    ordinal: usize,
+    count: usize,
+    read: impl Fn(&str) -> Option<BoundValue>,
+) -> Option<PinInputSnapshot> {
+    let focused = match read(&field_name(ordinal, PinInputField::Focused))? {
+        BoundValue::Text(t) if t.is_empty() => None,
+        BoundValue::Text(t) => Some(t.parse::<usize>().ok().filter(|i| *i < count)?),
+        BoundValue::Flag(_) => return None,
+    };
+    let mut digits = Vec::new();
+    for i in 0..count {
+        match read(&field_name(ordinal, PinInputField::Digit(i)))? {
+            BoundValue::Text(t) if t.chars().count() <= 1 => digits.push(t),
+            _ => return None,
+        }
+    }
+    Some(PinInputSnapshot { focused, digits })
+}
+
+/// 読み戻した状態を DOM へ反映する計画。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ReflectPlan {
+    /// ライブ `value` を書き換える桁と値（状態機械の値とライブ値が異なる桁のみ）。
+    pub value_writes: Vec<(usize, String)>,
+    /// フォーカスを置く桁（`None` なら動かさない）。
+    pub focus: Option<usize>,
+}
+
+/// 状態の読み戻し結果から DOM 反映の計画を作る（純粋関数）。
+///
+/// - `snapshot` があれば、値は `value_index`（`input` のあった桁）だけを状態機械の値へそろえる
+///   （他の桁は触らない。ネイティブ削除などで状態と食い違う桁を復活させないため）。
+///   フォーカスは状態機械の `focused` へ置く（受理・拒否・正規化・次桁への前進はすべて状態機械の結果）。
+///   `value_index` が `None`（`focusin`）なら値は書かない。
+/// - `snapshot` が無ければ（読み戻せない）値は触らず、フォーカスは `fallback_focus`
+///   （`focusin` でユーザーが選んだ桁の復元）にだけ使う。
+#[must_use]
+pub fn reflect_plan(
+    snapshot: Option<&PinInputSnapshot>,
+    live: &[String],
+    value_index: Option<usize>,
+    fallback_focus: Option<usize>,
+) -> ReflectPlan {
+    let Some(snapshot) = snapshot else {
+        return ReflectPlan {
+            value_writes: Vec::new(),
+            focus: fallback_focus,
+        };
+    };
+    let value_writes = value_index
+        .and_then(|i| {
+            let digit = snapshot.digits.get(i)?;
+            live.get(i)
+                .is_some_and(|l| l != digit)
+                .then(|| (i, digit.clone()))
+        })
+        .into_iter()
+        .collect();
+    ReflectPlan {
+        value_writes,
+        focus: snapshot.focused,
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        classify_input_value, input_accepted, input_dispatches, next_focus_index,
-        parse_digit_index, prefilter_char, resolve_kind, InputValue, KindResolution, ACTION_FOCUS,
-        INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
+        classify_input_value, input_dispatches, parse_digit_index, reflect_plan,
+        snapshot_from_bound, InputValue, ACTION_FOCUS, INPUT_PART, PIN_INPUT_SCOPE, ROOT_PART,
     };
     use crate::dom::has_disabled_ancestor;
     use crate::events::{ActionRef, ACTION_INPUT_ATTR};
+    use fandhe_frontend_wasm_client::BoundValue;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, HtmlInputElement, InputEvent};
@@ -234,14 +351,28 @@ mod wiring {
     const INPUT_SELECTOR: &str = r#"[data-scope="pin-input"][data-part="input"]"#;
     const ROOT_SELECTOR: &str = r#"[data-scope="pin-input"][data-part="root"]"#;
 
+    /// capture 段で記録する「どの桁に何が入力されたか」（判断は含まない）。
+    struct Pending {
+        /// 記録元のイベント（bubble 段で同一イベントかを `Object.is` で照合する）。
+        event: Event,
+        ordinal: usize,
+        index: usize,
+        count: usize,
+        typed: char,
+        /// `data-action-input` の所有者がいる（dispatch はアプリと `wire_events` が担う）。
+        app_owned: bool,
+    }
+
     thread_local! {
-        /// フォーカス復元中の `focusin` 再入を抑止するフラグ（wasm は単一スレッド）。
+        /// フォーカス反映中の `focusin` 再入を抑止するフラグ（wasm は単一スレッド）。
         static REFOCUSING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        /// capture 段の記録。`input` イベントは同期的に capture → bubble と進むため 1 件で足りる。
+        static PENDING: std::cell::RefCell<Option<Pending>> = const { std::cell::RefCell::new(None) };
     }
 
     type SharedOnAction<F> = std::rc::Rc<std::cell::RefCell<F>>;
-    /// 状態から描画したビューの指紋（取得できなければ `None`）。受理判定に使う。
-    type Fingerprint = std::rc::Rc<dyn Fn() -> Option<String>>;
+    /// 状態機械の予約 field の読み出し（読めなければ `None`）。
+    type ReadBound = std::rc::Rc<dyn Fn(&str) -> Option<BoundValue>>;
 
     fn is_part(element: &Element, part: &str) -> bool {
         element.get_attribute("data-scope").as_deref() == Some(PIN_INPUT_SCOPE)
@@ -302,24 +433,8 @@ mod wiring {
     }
 
     /// 配線 root 配下で `instance_root` が何番目の PinInput Root か。
-    fn root_ordinal(root: &Element, instance_root: &Element) -> Option<u32> {
-        instance_roots(root)
-            .iter()
-            .position(|e| e == instance_root)
-            .and_then(|i| u32::try_from(i).ok())
-    }
-
-    /// 再描画で要素が差し替わっても追えるよう、順序と `data-index` から桁 input を引き直す。
-    fn resolve_input(root: &Element, ordinal: u32, index: usize) -> Option<HtmlInputElement> {
-        let instance_root = instance_roots(root).into_iter().nth(ordinal as usize)?;
-        instance_inputs(&instance_root)
-            .into_iter()
-            .find(|e| {
-                parse_digit_index(e.get_attribute("data-index").as_deref(), usize::MAX)
-                    == Some(index)
-            })?
-            .dyn_into::<HtmlInputElement>()
-            .ok()
+    fn root_ordinal(root: &Element, instance_root: &Element) -> Option<usize> {
+        instance_roots(root).iter().position(|e| e == instance_root)
     }
 
     /// 桁 input 以外・操作不能な要素なら `None`。戻り値は (桁 input, 最寄りの Root)。
@@ -335,10 +450,89 @@ mod wiring {
         Some((target, instance_root))
     }
 
-    /// `input`（capture）/ `focusin` を `root` へ 1 回ずつ登録する（`Closure::forget` は計 2 回）。
+    /// `data-action-input` を持つ最寄りの祖先（自身を含む）が配線 root 内にあるか。
     ///
-    /// `on_action` は dispatch できたとき `true` を返す。フォーカス移動は `on_action` から
-    /// 戻った後（`component` の借用解放後）に行う。
+    /// `events::attribute_input_action` と同じ `closest` 探索・root 境界で判定する
+    /// （祖先の Root やラッパーに属性があっても `wire_events` が dispatch するため）。
+    fn has_input_action_owner(root: &Element, target: &Element) -> bool {
+        let selector = format!("[{ACTION_INPUT_ATTR}]");
+        target
+            .closest(&selector)
+            .ok()
+            .flatten()
+            .is_some_and(|matched| root.contains(Some(&matched)))
+    }
+
+    /// `ordinal` 番目の Root の桁 input を `data-index` 順（桁数 `count`）に引き直す。
+    fn digit_elements(
+        root: &Element,
+        ordinal: usize,
+        count: usize,
+    ) -> Vec<Option<HtmlInputElement>> {
+        let mut digits: Vec<Option<HtmlInputElement>> = vec![None; count];
+        let Some(instance_root) = instance_roots(root).into_iter().nth(ordinal) else {
+            return digits;
+        };
+        for element in instance_inputs(&instance_root) {
+            let Some(index) =
+                parse_digit_index(element.get_attribute("data-index").as_deref(), count)
+            else {
+                continue;
+            };
+            if let Ok(input) = element.dyn_into::<HtmlInputElement>() {
+                digits[index] = Some(input);
+            }
+        }
+        digits
+    }
+
+    /// 状態機械の状態を読み戻して DOM へ反映する（値は `value_index` の桁だけ、フォーカスは状態の `focused`）。
+    ///
+    /// 判断は [`reflect_plan`]（純粋関数）に閉じており、ここは計画を DOM へ適用するだけ。
+    /// `fallback_focus` は読み戻せないときの `focusin` 用の復元先（モジュール doc 参照）。
+    fn reflect(
+        root: &Element,
+        ordinal: usize,
+        count: usize,
+        fallback_focus: Option<usize>,
+        value_index: Option<usize>,
+        read_bound: &ReadBound,
+    ) {
+        let digits = digit_elements(root, ordinal, count);
+        let live: Vec<String> = digits
+            .iter()
+            .map(|d| d.as_ref().map(HtmlInputElement::value).unwrap_or_default())
+            .collect();
+        let snapshot = snapshot_from_bound(ordinal, count, |field| read_bound(field));
+        let plan = reflect_plan(snapshot.as_ref(), &live, value_index, fallback_focus);
+        for (index, value) in &plan.value_writes {
+            if let Some(Some(input)) = digits.get(*index) {
+                input.set_value(value);
+            }
+        }
+        let Some(Some(target)) = plan.focus.and_then(|f| digits.get(f)) else {
+            return;
+        };
+        let active = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.active_element());
+        if active.as_ref() != Some(target.unchecked_ref::<Element>()) {
+            REFOCUSING.with(|f| f.set(true));
+            let _ = target.focus();
+            REFOCUSING.with(|f| f.set(false));
+        }
+    }
+
+    /// `input`（capture / bubble）と `focusin` を `root` へ登録する（`Closure::forget` は計 3 回）。
+    ///
+    /// - `input`（capture）: 入力された桁の場所と 1 文字を記録するだけ。この時点で要素は
+    ///   まだ差し替わっていない。
+    /// - `input`（bubble）: `Runtime` では `wire_events` より後に登録されるため、アプリ所有の
+    ///   経路ではアプリの dispatch が済んでから実行される。所有者がいなければここで
+    ///   `"focus"` → `"input"` を dispatch し、いずれも状態の読み戻しで DOM を反映する。
+    /// - `focusin`: 所有者がいない桁だけ `"focus"` を dispatch して反映する。
+    ///
+    /// `on_action` は dispatch できたとき `true` を返す。`read_bound` は予約 field の読み出し。
     ///
     /// # Errors
     ///
@@ -346,28 +540,34 @@ mod wiring {
     pub fn wire_pin_input_events(
         root: Element,
         on_action: impl FnMut(ActionRef) -> bool + 'static,
-        fingerprint: impl Fn() -> Option<String> + 'static,
+        read_bound: impl Fn(&str) -> Option<BoundValue> + 'static,
     ) -> Result<(), JsValue> {
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
-        let fingerprint: Fingerprint = std::rc::Rc::new(fingerprint);
+        let read_bound: ReadBound = std::rc::Rc::new(read_bound);
 
-        let input_root = root.clone();
-        let input_on_action = on_action.clone();
-        let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_input(&input_root, &event, &input_on_action, &fingerprint);
+        let capture_root = root.clone();
+        let capture_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            record_input(&capture_root, &event);
         });
-        // capture で登録し、`events::wire_events` の bubble `input` dispatch より前に
-        // 大文字そろえ・値の復元を済ませる（正規化前の値が dispatch されるのを防ぐ）。
         root.add_event_listener_with_callback_and_bool(
             "input",
-            input_closure.as_ref().unchecked_ref(),
+            capture_closure.as_ref().unchecked_ref(),
             true,
         )?;
-        input_closure.forget();
+        capture_closure.forget();
+
+        let bubble_root = root.clone();
+        let bubble_on_action = on_action.clone();
+        let bubble_read = read_bound.clone();
+        let bubble_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_input(&bubble_root, &event, &bubble_on_action, &bubble_read);
+        });
+        root.add_event_listener_with_callback("input", bubble_closure.as_ref().unchecked_ref())?;
+        bubble_closure.forget();
 
         let focus_root = root.clone();
         let focusin_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_focusin(&focus_root, &event, &on_action);
+            handle_focusin(&focus_root, &event, &on_action, &read_bound);
         });
         root.add_event_listener_with_callback("focusin", focusin_closure.as_ref().unchecked_ref())?;
         focusin_closure.forget();
@@ -381,12 +581,9 @@ mod wiring {
             .unwrap_or(false)
     }
 
-    fn handle_input<F: FnMut(ActionRef) -> bool>(
-        root: &Element,
-        event: &Event,
-        on_action: &SharedOnAction<F>,
-        fingerprint: &Fingerprint,
-    ) {
+    /// capture 段: 1 文字入力された桁の場所と文字を記録する（受理・拒否の判断はしない）。
+    fn record_input(root: &Element, event: &Event) {
+        PENDING.with(|p| *p.borrow_mut() = None);
         // IME 変換中は確定前の文字列を扱わない（fail-closed）。
         if event
             .dyn_ref::<InputEvent>()
@@ -400,7 +597,7 @@ mod wiring {
         let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
             return;
         };
-        let InputValue::Single(c) = classify_input_value(&input.value()) else {
+        let InputValue::Single(typed) = classify_input_value(&input.value()) else {
             return;
         };
         let count = instance_inputs(&instance_root).len();
@@ -408,127 +605,65 @@ mod wiring {
         else {
             return;
         };
-        let kind = resolve_kind(instance_root.get_attribute("data-hydrate-kind").as_deref());
-        if kind == KindResolution::Tampered {
-            // bubble 側の汎用 dispatch へも渡さない（fail-closed）。
-            crate::events::mark_input_rejected(event);
-            return;
-        }
         let Some(ordinal) = root_ordinal(root, &instance_root) else {
             return;
         };
-        let Some(normalized) = prefilter_char(kind, c) else {
-            // 状態機械へは何も送らないため、DOM を状態側の旧値（描画済み value 属性）へ戻す。
-            let restored = input.default_value();
-            if restored.chars().count() <= 1 {
-                input.set_value(&restored);
-            } else {
-                input.set_value("");
-            }
-            // 復元後の旧値を `events::wire_events` の bubble 側が新規入力として dispatch
-            // しないよう拒否印を付ける（フォーカスも動かさない）。
-            crate::events::mark_input_rejected(event);
+        let app_owned = has_input_action_owner(root, &target);
+        PENDING.with(|p| {
+            *p.borrow_mut() = Some(Pending {
+                event: event.clone(),
+                ordinal,
+                index,
+                count,
+                typed,
+                app_owned,
+            });
+        });
+    }
+
+    /// bubble 段: 所有者がいなければ状態機械へ dispatch し、状態を読み戻して DOM へ反映する。
+    fn handle_input<F: FnMut(ActionRef) -> bool>(
+        root: &Element,
+        event: &Event,
+        on_action: &SharedOnAction<F>,
+        read_bound: &ReadBound,
+    ) {
+        let Some(pending) = PENDING.with(|p| p.borrow_mut().take()) else {
             return;
         };
-        if normalized != c {
-            input.set_value(&normalized.to_string());
-        }
-        // `data-action-input` がある桁は `events::wire_events` が dispatch を担う。
-        // 所有者判定は `events::attribute_input_action` と同じ `closest` 探索・root 境界で行う
-        // （祖先の Root やラッパーに属性があっても bubble 側が dispatch するため）。
-        if has_input_action_owner(root, &target) {
-            // bubble 側の dispatch と再描画が済んでから確認・フォーカス移動する
-            // （先に focus() すると focusin の "focus" dispatch で状態機械の focused が
-            // 次桁へ移り、後続の "input" が次桁へ書かれる）。
-            let deferred_root = root.clone();
-            let prev_digit = input.default_value();
-            let before = fingerprint();
-            let deferred_fp = fingerprint.clone();
-            let cb = Closure::once_into_js(move || {
-                let accepted = input_accepted(
-                    before.as_deref(),
-                    deferred_fp().as_deref(),
-                    normalized,
-                    &prev_digit,
-                );
-                finish_input(&deferred_root, ordinal, index, count, accepted);
-            });
-            let scheduled = web_sys::window().is_some_and(|w| {
-                w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 0)
-                    .is_ok()
-            });
-            if !scheduled {
-                // スケジュールできないときは fail-closed（旧値へ戻して終える）。
-                restore_input(root, ordinal, index);
-            }
+        // 別イベントの記録が残っていた場合は処理しない（fail-closed）。
+        if !js_sys::Object::is(pending.event.as_ref(), event.as_ref()) {
             return;
         }
-        let [focus, value] = input_dispatches(index, normalized);
-        call(on_action, focus);
-        // focus dispatch の再描画後に描画済みの旧値を取る（同じ文字の打ち直し判定用）。
-        let prev_digit = resolve_input(root, ordinal, index)
-            .map(|el| el.default_value())
-            .unwrap_or_default();
-        let before = fingerprint();
-        let dispatched = call(on_action, value);
-        // 受理は「ビューの変化」または「同じ文字の打ち直し」で判定する
-        // （ブラウザが設定済みのライブ値は受理の証拠にならない）。
-        let accepted = dispatched
-            && input_accepted(
-                before.as_deref(),
-                fingerprint().as_deref(),
-                normalized,
-                &prev_digit,
-            );
-        finish_input(root, ordinal, index, count, accepted);
-    }
-
-    /// `data-action-input` を持つ最寄りの祖先（自身を含む）が配線 root 内にあるか。
-    fn has_input_action_owner(root: &Element, target: &Element) -> bool {
-        let selector = format!("[{ACTION_INPUT_ATTR}]");
-        target
-            .closest(&selector)
-            .ok()
-            .flatten()
-            .is_some_and(|matched| root.contains(Some(&matched)))
-    }
-
-    /// 桁 input の DOM 値を描画済み value 属性（無ければ空）へ戻す。
-    fn restore_input(root: &Element, ordinal: u32, index: usize) {
-        if let Some(el) = resolve_input(root, ordinal, index) {
-            let restored = el.default_value();
-            if restored.chars().count() <= 1 {
-                el.set_value(&restored);
-            } else {
-                el.set_value("");
-            }
+        if !pending.app_owned {
+            let [focus, value] = input_dispatches(pending.index, pending.typed);
+            call(on_action, focus);
+            call(on_action, value);
         }
-    }
-
-    /// 受理されたときだけ次桁へフォーカスを移す。拒否（状態が変わらなかった）なら
-    /// 桁 input を状態側の旧値（描画済み value 属性、無ければ空）へ戻しフォーカスは動かさない。
-    fn finish_input(root: &Element, ordinal: u32, index: usize, count: usize, accepted: bool) {
-        if !accepted {
-            restore_input(root, ordinal, index);
-            return;
-        }
-        if let Some(next) = next_focus_index(index, count) {
-            if let Some(n) = resolve_input(root, ordinal, next) {
-                let _ = n.focus();
-            }
-        }
+        reflect(
+            root,
+            pending.ordinal,
+            pending.count,
+            None,
+            Some(pending.index),
+            read_bound,
+        );
     }
 
     fn handle_focusin<F: FnMut(ActionRef) -> bool>(
         root: &Element,
         event: &Event,
         on_action: &SharedOnAction<F>,
+        read_bound: &ReadBound,
     ) {
+        if REFOCUSING.with(std::cell::Cell::get) {
+            return;
+        }
         let Some((target, instance_root)) = target_digit(root, event) else {
             return;
         };
-        // `data-action-input` の所有者がいる桁は、複数インスタンスをアプリが入力 action で
-        // 振り分けている可能性がある。インスタンス情報のない汎用 "focus" は送らず委ねる。
+        // 所有者（アプリの action）がいる桁へはインスタンス情報のない汎用 "focus" を送らない
+        // （モジュール doc「アプリ所有の経路」）。
         if has_input_action_owner(root, &target) {
             return;
         }
@@ -537,9 +672,6 @@ mod wiring {
         else {
             return;
         };
-        if REFOCUSING.with(std::cell::Cell::get) {
-            return;
-        }
         let Some(ordinal) = root_ordinal(root, &instance_root) else {
             return;
         };
@@ -554,23 +686,14 @@ mod wiring {
             return;
         }
         // 再描画（構造フォールバック）で桁 input が差し替わるとフォーカスを失うため、
-        // 引き直した要素へフォーカスを戻す。`focus()` の `focusin` 再入は抑止する。
-        let Some(el) = resolve_input(root, ordinal, index) else {
-            return;
-        };
-        let active = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|d| d.active_element());
-        if active.as_ref() != Some(el.unchecked_ref::<Element>()) {
-            REFOCUSING.with(|f| f.set(true));
-            let _ = el.focus();
-            REFOCUSING.with(|f| f.set(false));
-        }
+        // 状態機械の focused（読めなければ選ばれた桁）へ引き直した要素でフォーカスを戻す。
+        reflect(root, ordinal, count, Some(index), None, read_bound);
     }
 
-    /// [`wire_pin_input_events`] に `Component` の dispatch と DOM 反映を接続する。
+    /// [`wire_pin_input_events`] に `Component` の dispatch と状態の読み戻しを接続する。
     ///
-    /// dispatch できたら `on_update` で再描画し `true` を返す。`Runtime::mount`/`hydrate`
+    /// dispatch できたら `on_update` で再描画し `true` を返す。読み戻しは `C` の
+    /// `BindingSource::bound_value`（予約 field、モジュール doc 参照）。`Runtime::mount`/`hydrate`
     /// から `Runtime::wire_pin_input` 経由で呼ばれる。
     ///
     /// # Errors
@@ -582,16 +705,18 @@ mod wiring {
         on_update: impl FnMut(&C, &Element) + 'static,
     ) -> Result<(), JsValue>
     where
-        C: fandhe_frontend_interactive::Component + 'static,
+        C: fandhe_frontend_interactive::Component
+            + fandhe_frontend_wasm_client::BindingSource
+            + 'static,
     {
         let on_update = std::rc::Rc::new(std::cell::RefCell::new(on_update));
         let wired_root = root.clone();
         let view_component = component.clone();
-        let fingerprint = move || {
+        let read_bound = move |field: &str| {
             view_component
                 .try_borrow()
                 .ok()
-                .map(|state| fandhe_frontend_core::render(&state.view()))
+                .and_then(|state| state.bound_value(field))
         };
         wire_pin_input_events(
             root,
@@ -612,7 +737,7 @@ mod wiring {
                 }
                 true
             },
-            fingerprint,
+            read_bound,
         )
     }
 }

@@ -3316,7 +3316,7 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 ## 42. `pin_input` モジュール（イシュー #3834、親 #3831）
 
 `crates/wasm-full/src/pin_input.rs` は PinInput（`fandhe-frontend-headless-ui`
-`pin_input`）の桁 input への 1 文字入力と次桁へのフォーカス移動を配線する。
+`pin_input`）の桁 input への 1 文字入力と、状態機械が決めた桁へのフォーカス移動を配線する。
 配線群別 feature `pin-input`（既定 on）でモジュールごと cfg ゲートし、off では
 配線コードをビルドに含めない。dist-server の `WASM_DIST_FEATURES` には含めない（REQ-11）。
 
@@ -3329,20 +3329,57 @@ root の bubble で動く部品は `defaultPrevented` で汎用配線と排他�
 よう祖先探索を止めること。解決が成立しないので `stop_propagation` も走らない。
 桁番号の同期は `focusin` リスナーが担う。
 
-### 42.2 2 層構成と DOM 同期契約
+### 42.2 設計の核と 2 層構成
 
-`number_input` と同型で、純粋ロジック層（桁番号パース・入力値分類・kind 解決・事前
-フィルタ・フォーカス移動先・dispatch 列）は native テスト対象、配線層のみ
-`#[cfg(target_arch = "wasm32")]`。リスナーは `input` と `focusin` の 2 個で固定。
-`input` は IME 変換中・0 文字・2 文字以上を何もしない（2 文字以上は #3835 の paste 配線へ
-残す）。1 文字は `"focus"` → `"input"` を dispatch し、成功後に次桁へ DOM フォーカスを移す。
-DOM の直接書き込みは大文字そろえ kind の表示補正と、kind 不適合文字の値クリア
-（`set_value` のみ）に限る。dispatch 後に要素が差し替わりうるため、順序と `data-index`
-から引き直す。`data-action-input` を持つ桁では `events::wire_events` が dispatch を担い、
-本モジュールはフォーカス移動だけを行う。
+不変条件: **入力の受理・拒否と `focused` の位置は状態機械（`PinInput`）だけが決める。** DOM 層は
+kind の解決・文字種の事前判定・大文字そろえ・ライブ `value` や content attribute・文字比較からの
+受理の推定・`focused` の推測（「受理なら次桁」）を一切行わず、dispatch 後の状態を読み戻して反映するだけ。
+
+純粋ロジック層（桁番号パース・入力値の分類・dispatch 列・予約 field の名前解釈・状態スナップショット・
+DOM 反映計画 `reflect_plan`）は native テスト対象、配線層のみ `#[cfg(target_arch = "wasm32")]`。
+リスナーは `input`（capture）・`input`（bubble）・`focusin` の 3 個で固定する。
+
+- `input`（capture）: 入力された桁の場所（Root の文書順・`data-index`）と 1 文字を記録するだけ。判断はしない。
+- `input`（bubble）: `Runtime::mount`/`hydrate` は `wire_events` より後にこの配線を登録するため、
+  同一イベントで `wire_events` の後に実行される。所有者（`data-action-input`）がいなければ
+  `"focus"` → `"input"` を無加工の文字で dispatch する（1 打鍵で `on_update` が 2 回走る）。
+  その後、状態を読み戻して反映する。値の書き込みは `input` のあった桁 1 つだけ（ネイティブ削除済みの
+  別の桁を復活させない）、フォーカスは状態の `focused` へ置く。
+- `focusin`: 所有者がいなければ `"focus"` を dispatch し、フォーカスだけを状態の `focused`
+  （読めなければ選ばれた桁）へ置く（再描画による要素差し替えからの復元）。
+
+要素参照は保持せず、Root の文書順と `data-index` から引き直す（配線 root 自身が Root の場合も含む）。
+
+### 42.2a 読み戻しの契約（`BindingSource` の予約 field）
+
+正準ビューは `focused` を持たず `Runtime<C>` の `C` はアプリ固有のホスト型のため、読み戻しは `Runtime` が
+既に `C` へ要求している `BindingSource` の予約 field で行い、新しい trait 境界は足さない。
+`pin-input.<n>.focused`（`Text(桁番号)`、未設定は `Text("")`）と `pin-input.<n>.digit.<i>`
+（`Text(桁の値)`、未入力は `Text("")`）。`<n>` は配線 root 配下の PinInput Root の文書順。
+ホストは `pin_input::parse_field` / `bound_value_for` へ委譲する。1 つでも読めなければ fail-closed
+（dispatch のみ。DOM の値もフォーカスも書かない。`focusin` のみ選択桁へフォーカスを戻す）。
+**実装は事実上必須**で、未実装だと拒否文字が DOM に残り表示と状態がずれる。桁 input の `value` を
+JS から直接読まない・送信値は `hidden_input` を使う・`pin-input.` は予約接頭辞・`digit.*` を表示用束縛に使わない
+（OTP が露出する）。
+
+### 42.2b アプリ所有の経路（`data-action-input`）
+
+桁または配線 root 内の祖先に `data-action-input` がある場合、dispatch はアプリと `wire_events` が担い、
+本モジュールは `input` も汎用 `"focus"` も dispatch しない（汎用 `"focus"` はインスタンス ID を持たない）。
+アプリの dispatch 後に同じ読み戻しで値とフォーカスだけを反映する。アプリは action 名で桁を識別し、
+桁の選択（クリック・Tab）の同期も担う。汎用経路は 1 配線 root につき PinInput 1 つが前提。
+配線は 1 root につき 1 回で、入れ子の配線 root では `PENDING`（1 スロット）のため内側だけが反映する。
+
+### 42.2c 本モジュールが触れない入力
+
+0 文字（ネイティブ Backspace/Delete）・2 文字以上（貼り付け・autofill）・IME 確定入力は、状態にも DOM の値にも
+触れない（#3835）。IME は Chrome/Firefox で `isComposing=true` の最後の `input` の後に `compositionend` が来て
+その後 `input` が来ないため、確定文字は状態へ渡らず DOM に残る。`events::wire_events` の `compositionend`
+補完（#2069）は `data-action-input` 経路用で汎用経路には効かない。
 
 ### 42.3 スコープ外
 
 - 貼り付け・Backspace/Delete/矢印キー・autofill（2 文字以上の `input`）: #3835
 - 実ブラウザでの入力・フォーカス移動・大文字表示の固定: #3836
-- 同一 root 内の複数 PinInput の区別（payload にインスタンス ID が無い。1 root : 1 状態機械の簡略化）
+- 同一 root 内の複数 PinInput の区別（汎用経路は 1 root : 1 状態機械。複数は `data-action-input` + ordinal 別の `bound_value`）
+- IME（`compositionstart`/`compositionend`）中の入力・確定入力の扱い: #3835
