@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "fandhe-frontend-app"
-version = "0.2.6"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64dc78600b2cb88c6d75f03c52554bacbd38ac5362dfc9d70a43c2fc9387c6e6"
+checksum = "1b8c7462fd94e0e4b442bae18eb1157111be0bc38f152d3fb1cb9a4871f2bc1a"
 dependencies = [
  "fandhe-frontend-core",
 ]
