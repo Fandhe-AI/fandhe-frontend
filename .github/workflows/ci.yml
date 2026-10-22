@@ -1662,7 +1662,7 @@ jobs:
         # 「ツール前提の明示」）。
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Run xtask wasm-node-smoke
         # xtask の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
@@ -1911,7 +1911,7 @@ jobs:
         # 作りだが、実 npm でのパイプライン検証を常に行うために導入する）。
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       # ubuntu-latest には python3 がプリインストール済みだが、決定性のため
       # fail-closed 検出を維持する（他ジョブと異なりインストールは行わない。
