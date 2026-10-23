@@ -10,7 +10,7 @@ export const auth = betterAuth({
     allowedHosts: [
       "myapp.com",
       "www.myapp.com",
-      "*.vercel.app",
+      "*.preview.myapp.com",
     ],
   },
 });
@@ -23,7 +23,7 @@ When a request is received, Better Auth extracts the host from the `x-forwarded-
 ```typescript
 export const auth = betterAuth({
   baseURL: {
-    allowedHosts: ["myapp.com", "*.vercel.app"],
+    allowedHosts: ["myapp.com", "*.preview.myapp.com"],
     fallback: "https://myapp.com",
   },
 });
@@ -34,7 +34,7 @@ export const auth = betterAuth({
 ```typescript
 export const auth = betterAuth({
   baseURL: {
-    allowedHosts: ["localhost:3000", "myapp.com", "*.vercel.app"],
+    allowedHosts: ["localhost:3000", "myapp.com", "*.preview.myapp.com"],
     protocol: process.env.NODE_ENV === "development" ? "http" : "https",
   },
 });
@@ -69,14 +69,16 @@ export const auth = betterAuth({
 
 **Vercel deployments:**
 
+Serve preview deployments under a domain you control (e.g. with Vercel's Preview Deployment Suffix). Then allow that domain instead of `*.vercel.app`:
+
 ```typescript
-allowedHosts: ["myapp.com", "www.myapp.com", "*.vercel.app"]
+allowedHosts: ["myapp.com", "www.myapp.com", "*.preview.myapp.com"]
 ```
 
 **Development + production:**
 
 ```typescript
-allowedHosts: ["localhost:3000", "localhost:5173", "myapp.com", "*.vercel.app"],
+allowedHosts: ["localhost:3000", "localhost:5173", "myapp.com", "*.preview.myapp.com"],
 protocol: process.env.NODE_ENV === "development" ? "http" : "https"
 ```
 
@@ -99,7 +101,7 @@ allowedHosts: ["myapp.com", "myapp.co.uk", "myapp.eu"]
 | Pattern | Matches |
 |---------|---------|
 | `myapp.com` | Exact domain match only |
-| `*.vercel.app` | Any Vercel subdomain |
+| `*.preview.myapp.com` | Any subdomain of `preview.myapp.com` |
 | `preview-*.myapp.com` | Subdomains starting with `preview-` |
 | `localhost:*` | localhost on any port |
 
@@ -118,6 +120,7 @@ Cookie `Secure` flag: `https` -> secure, `http` -> insecure, `auto`/unset -> dep
 > **Note**: As of 2026-08 the official `concepts/dynamic-base-url` page no longer exists (404). The same content has been consolidated into `guides/dynamic-base-url.md`, which is now the primary source. This page is kept for the time being as a reference during the transition.
 
 - `allowedHosts` automatically appends its patterns to `trustedOrigins`, deduplicating entries
+- Do not use wildcards on shared hosting domains such as `*.vercel.app`, `*.netlify.app` or `*.pages.dev`. Anyone can deploy a site there. Because `allowedHosts` patterns are also added to `trustedOrigins`, third-party sites would pass origin and redirect checks. Allow only hosts you control
 - Configuring `allowedHosts` is required — Better Auth does not perform automatic platform detection
 - `fallback` silently masks unrecognized hosts and may hide misconfiguration, so use it with care
 

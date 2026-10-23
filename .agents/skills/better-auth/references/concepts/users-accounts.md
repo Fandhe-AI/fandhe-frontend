@@ -199,30 +199,17 @@ const accounts = await authClient.listAccounts();
 
 ### Token encryption
 
-Better Auth does not encrypt tokens by default. Implement encryption using a database hook:
+Better Auth does not encrypt OAuth tokens by default. Enable the built-in `account.encryptOAuthTokens` option (see `reference/options.md`). Tokens are then encrypted whenever they are stored, including on refresh. Better Auth decrypts them itself when it retrieves or refreshes tokens:
 
 ```typescript
 export const auth = betterAuth({
-  databaseHooks: {
-    account: {
-      create: {
-        before(account, context) {
-          const withEncryptedTokens = { ...account };
-          if (account.accessToken) {
-            withEncryptedTokens.accessToken = encrypt(account.accessToken);
-          }
-          if (account.refreshToken) {
-            withEncryptedTokens.refreshToken = encrypt(account.refreshToken);
-          }
-          return { data: withEncryptedTokens };
-        },
-      },
-    },
+  account: {
+    encryptOAuthTokens: true,
   },
 });
 ```
 
-Decrypt tokens before using them when retrieving an account.
+Do not encrypt tokens yourself in a `databaseHooks.account.create.before` hook. Such a hook only runs when an account is created, so tokens saved on refresh stay unencrypted. Better Auth's internal token retrieval and refresh also cannot decrypt them, and would send the ciphertext to the OAuth provider.
 
 ### Account linking
 
