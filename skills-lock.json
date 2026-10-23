@@ -7,6 +7,12 @@
       "skillPath": "skills/ark-ui/SKILL.md",
       "computedHash": "52d17362fff6c58223ac7fa53487cf001ecb893a53257b214362c92cea3b6745"
     },
+    "better-auth": {
+      "source": "Fandhe-AI/agent-reference-skills",
+      "sourceType": "github",
+      "skillPath": "skills/better-auth/SKILL.md",
+      "computedHash": "995341daa7ada127856559e1b1ebd38920e3c2e3aaa477e4662a7fd78701f914"
+    },
     "chakra-ui": {
       "source": "Fandhe-AI/agent-reference-skills",
       "sourceType": "github",
