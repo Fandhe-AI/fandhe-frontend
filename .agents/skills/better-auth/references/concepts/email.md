@@ -4,6 +4,8 @@ Email is a required field for all Better Auth users regardless of the auth metho
 
 ## Signature / Usage
 
+Better Auth works with any transactional email provider; bring your own. Providers with Better Auth guides include Resend, SuperSend TX, Mailtrap, Wraps, and eusend.
+
 Token-based email verification (OTP-based verification is available via the Email OTP plugin). Requires implementing the `sendVerificationEmail` function. Setting `emailAndPassword.requireEmailVerification` to `true` blocks unverified logins (returns HTTP 403).
 
 ### Server — basic verification setup
@@ -53,7 +55,8 @@ export const auth = betterAuth({
     },
     autoSignInAfterVerification: true,
     async afterEmailVerification(user, request) {
-      console.log(`${user.email} verified successfully`);
+      // Avoid logging PII such as email addresses
+      console.log(`User ${user.id} verified successfully`);
     },
   },
 });
