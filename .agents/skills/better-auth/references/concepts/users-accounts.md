@@ -310,7 +310,7 @@ A user must satisfy one of the following:
 - Don't await email sending, to prevent timing attacks
 - For OAuth users without a password, use email verification or a fresh session check
 - Account linking is enabled by default
-- Token encryption is not performed by default — must be implemented via a database hook
+- OAuth tokens are not encrypted by default. Enable `account.encryptOAuthTokens`; do not encrypt them yourself in a database hook
 
 ## Related
 
