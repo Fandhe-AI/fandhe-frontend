@@ -11,7 +11,7 @@ Better Auth のパフォーマンス最適化ガイド。Better Auth アプリ�
 Enable session caching to reduce database queries:
 
 ```typescript
-auth.config({
+export const auth = betterAuth({
   session: {
     cookieCache: {
       enabled: true,
@@ -38,7 +38,7 @@ auth.config({
 For serverless environments, defer non-critical operations:
 
 ```typescript
-auth.config({
+export const auth = betterAuth({
   advanced: {
     backgroundTasks: { handler: waitUntil },
   },
@@ -50,7 +50,7 @@ auth.config({
 });
 ```
 
-**Operations to defer**: cleanup tasks, analytics, rate limit updates, email sending.
+**Operations to defer**: cleanup tasks, analytics aggregation, email sending.
 
 ### Server-Side Rendering (SSR)
 
@@ -92,3 +92,5 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 - **SSR pre-fetching** eliminates redundant client requests
 - **Database indexing** accelerates query execution across all auth tables
 - **Selective imports** minimize JavaScript bundle footprint
+- Rate limit counter updates are removed from the deferrable examples: they must stay in the request path as a single atomic check-and-increment (see rate-limit.md, `customStorage.consume`), otherwise concurrent requests can read a stale counter and exceed the limit (Adapted from the official docs).
+- Configuration examples pass options to `betterAuth({ ... })`; Better Auth instances have no `auth.config()` method (Adapted from the official docs)

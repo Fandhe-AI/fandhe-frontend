@@ -81,10 +81,18 @@ Every token or provider-profile request must select the account explicitly: pass
 ```typescript
 const { data: accounts } = await authClient.listAccounts();
 const account = accounts?.find((a) => a.providerId === "google");
+if (!account) {
+  throw new Error("No linked Google account");
+}
 
-const { accessToken } = await authClient.getAccessToken({
+// authClient methods return `{ data, error }` instead of the bare payload
+const { data: tokenData, error } = await authClient.getAccessToken({
   accountId: account.id,
 });
+if (error || !tokenData) {
+  throw new Error(error?.message ?? "Could not get an access token");
+}
+const accessToken = tokenData.accessToken;
 
 // signed account cookie
 await authClient.getAccessToken({ useAccountCookie: true });
@@ -114,8 +122,9 @@ const info = await authClient.accountInfo({
   query: { accountId: account.id }, // or { useAccountCookie: true }
 });
 
-console.log(info.data?.account.accountId);
-console.log(info.data?.user.email);
+const providerAccountId = info.data?.account.accountId;
+// `info.data?.user` holds mutable profile fields (name, email, ...); do not log them (PII)
+const profile = info.data?.user;
 ```
 
 ### Customizing the Authorization URL
@@ -289,6 +298,8 @@ Configure `user.additionalFields` to set additional user fields.
 ### Security
 
 - Validate and sanitize all client-provided data before use
+- `authClient.getAccessToken` and `listAccounts` return `{ data, error }`, not the bare payload; the sample destructures `data`, handles `error`, and guards a missing account instead of using `accessToken` directly (Adapted from the official docs)
+- The provider account info example reads `info.data` without logging the email address (PII); the official sample logs it with `console.log` (Adapted from the official docs)
 
 ## Related
 
