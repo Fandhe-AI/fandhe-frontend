@@ -51,11 +51,13 @@
 //   具体化した guard.mergeExecCommandFor(prNumber) で、merge 段の子の env には GH_REPO=<req.merge.repo> を固定する
 //   （監査 e670648 の MEDIUM-8。汎用の MERGE_EXEC_COMMAND は別の PR 番号・GH_REPO を向けた別リポジトリでも通った）。
 //   allowMerge でも req.merge が無ければ --merge-re を出さない（汎用の形へは倒さない。マージは hook に止められる）。
+//   req.merge がある段は、cwd がリポジトリの外（agent-host が作る空ディレクトリ）なので --skip-git-repo-check を付ける。
 //
 // permission profile は 2 種（:read-only を土台に、ネットワークは有効）:
 //   iit_read: worktree ではない cwd（メイン worktree。観測・状態・計画）。cwd は読み取りのみ・TMPDIR だけ書ける。
 //   どちらの profile にも req.writablePaths（契約。agent-host が label ごとに決める）を write で足す。いまは state:load
-//   （とそのフォールバック）だけが <main>/_/issue-trees を受け取る（モデルの段で状態ファイルを初期化する。Phase 3 の通しで、
+//   （とそのフォールバック）だけが <main>/_/issue-trees を受け取る（モデルの段で状態ファイルを初期化する。状態ファイルがあるときの
+//   state:load は agent-host が直接読むので〔lib/state-read.mjs〕、モデルへ回るのは状態ファイルが無い初回だけ。Phase 3 の通しで、
 //   無いと非 dryRun の初回が「状態ファイルの初期化に失敗」で止まった〔27c90eb〕。全段で常時 write にしていたのは
 //   監査 e670648 の MEDIUM-4 で、plan・monitor・merge-exec 等が状態ファイルを書き換えられた）。
 //   req.readTmpOf（agent-host がツリーのページの段 plan:issue-tree-page-N にだけ、ツリーの段の logDir を渡す）は、その段の
@@ -100,6 +102,8 @@
 //   req.profile で上書きできる（契約への任意の追加）。
 //
 // 時間切れ: プロセスグループへ SIGTERM、猶予後に SIGKILL（孫も止まる。setsid で抜けた孫は止められない）。
+// 出力超過: プロセスグループへ SIGKILL。どちらも close（パイプが閉じること）が来なければ猶予の後に決着し、パイプを閉じる
+// （抜けた孫がパイプを握っていても、段の時間上限まで並列の枠を握らない）。
 import { execFile, spawn } from 'node:child_process'
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -570,6 +574,10 @@ export function createAdapter(cfg) {
     if (model) args.push('-m', model)
     if (effort) args.push('-c', `model_reasoning_effort=${q(effort)}`)
     if (!resume) args.push('-C', cwd)
+    // マージを許す段は、agent-host がリポジトリの外の空ディレクトリを cwd にする（gh pr merge --delete-branch がローカルの
+    // ブランチを見つけず、sandbox で書けない .git/refs への削除を試みないように）。codex exec は git リポジトリの外では
+    // このフラグが無いと起動しないため、その段だけ付ける（resume も同じ cwd で続く）
+    if (merge !== null) args.push('--skip-git-repo-check')
     if (tc.trustProject) args.push('-c', `projects={${q(cwd)}={trust_level="trusted"}}`)
     if (schema) {
       const sp = join(logDir, 'schema-strict.json')
@@ -594,6 +602,7 @@ export function createAdapter(cfg) {
       let overflow = null
       let timedOut = false
       let settled = false
+      let forceTimer = null
       const p = spawn(bin, args, { cwd, env: childEnv(merge, tmpDir), stdio: ['pipe', 'pipe', 'pipe'], detached: true })
       running.add(p)
       const termTimer = setTimeout(() => {
@@ -601,20 +610,32 @@ export function createAdapter(cfg) {
         killGroup(p.pid, 'SIGTERM')
         setTimeout(() => killGroup(p.pid, 'SIGKILL'), killGraceMs).unref()
         // 子が終了しなくても返す（close を待たない上限）
-        setTimeout(() => finish({ exitCode: null, signal: 'SIGKILL' }), killGraceMs + 1000).unref()
+        if (forceTimer === null) {
+          forceTimer = setTimeout(() => finish({ exitCode: null, signal: 'SIGKILL', forced: true }), killGraceMs + 1000)
+          forceTimer.unref()
+        }
       }, timeoutMs)
-      const finish = ({ exitCode, signal, spawnError }) => {
+      const finish = ({ exitCode, signal, spawnError, forced = false }) => {
         if (settled) return
         settled = true
         clearTimeout(termTimer)
+        clearTimeout(forceTimer)
         running.delete(p)
-        if (timedOut) killGroup(p.pid, 'SIGKILL')
+        if (timedOut || overflow !== null) killGroup(p.pid, 'SIGKILL')
+        // close が来ていない: 抜けた孫が握るパイプの読み口を閉じる（イベントループを握らせず、決着後に溜め込まない。agent-host の spawnScript と同じ）
+        if (forced) { p.stdout.destroy(); p.stderr.destroy() }
         done({ out: Buffer.concat(outChunks).toString('utf8'), err: Buffer.concat(errChunks).toString('utf8'), timedOut, overflow, exitCode, signal, spawnError })
       }
+      // 出力超過: グループを止め、猶予の後は close を待たずに決着する（新しいセッションへ抜けた孫がパイプを握っていても、
+      // 段の時間上限まで並列の枠を握らない。時間切れの経路・agent-host の spawnScript と同じ）
       const stop = (which) => {
         if (overflow !== null) return
         overflow = which
         killGroup(p.pid, 'SIGKILL')
+        if (forceTimer === null) {
+          forceTimer = setTimeout(() => finish({ exitCode: null, signal: 'SIGKILL', forced: true }), killGraceMs)
+          forceTimer.unref()
+        }
       }
       p.stdout.on('data', (d) => {
         if (overflow !== null) return
