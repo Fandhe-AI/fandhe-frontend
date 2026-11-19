@@ -924,12 +924,8 @@ mod wiring {
                     return false;
                 }
             }
-            if is_inside_any(provider, TRIGGER_SELECTOR, target_node)
-                || is_inside_any(provider, RAIL_SELECTOR, target_node)
-            {
-                return false;
-            }
-            true
+            !(is_inside_any(provider, TRIGGER_SELECTOR, target_node)
+                || is_inside_any(provider, RAIL_SELECTOR, target_node))
         });
     }
 
