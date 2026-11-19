@@ -336,6 +336,122 @@ fn check_job_has_guard_step(contents: &str, job_name: &str) -> Result<(), String
     check_guard_step_completeness(step, &format!("ci.yml の `{job_name}` ジョブ"))
 }
 
+/// Rust 1.100 以降の build-dir 対応（`debug/build/<pkg>/<hash>/out/` 内の固定名の
+/// 削除）が含むべき 3 クレートのパッケージ名。
+const BUILD_DIR_CLEANUP_PKGS: [&str; 3] = [
+    "fandhe-frontend-wasm-thin",
+    "fandhe-frontend-wasm-full",
+    "fandhe-frontend-wasm-client",
+];
+
+/// build-dir 対応の `rm -f` が削除すべき固定名（`out` と `crate` はシェル変数）。
+const BUILD_DIR_CLEANUP_RM_TARGETS: [&str; 4] = [
+    "${out}/lib${crate}.rlib",
+    "${out}/lib${crate}.so",
+    "${out}/lib${crate}.dylib",
+    "${out}/${crate}.d",
+];
+
+/// `ci.yml` に存在するガードステップ数の下限（イシュー #1192 のガードは 10 ジョブにある）。
+/// ガードステップが静かに減って検査対象が空振りすることを防ぐ。
+const MIN_GUARD_STEPS_IN_CI: usize = 10;
+
+/// ガードステップが、Rust 1.100 以降の build-dir（`debug/build/<pkg>/<hash>/out/`）内の
+/// 固定名を `for` ループで個別に `rm -f` する処理を持つことを検証する純粋関数。
+///
+/// 1.100 では `debug/deps/` が作られず、旧 `deps/` の削除リストだけが残っても
+/// 3 種の rlib 名の存在検査（`check_guard_step_completeness`）は通ってしまう。
+/// そのため `for` ループ本体を、コメント行を除いた行から順序つきで確かめる
+/// （ループ内の説明コメントに識別子が現れても満たさない）:
+/// 1. `for pkg in` が 3 クレートすべてを列挙する
+/// 2. 後続の `for out in` が `build/${pkg}` 配下の `*/out` を走査する
+/// 3. その後に `rm -f` が 4 種の固定名（rlib・so・dylib・d）をすべて削除する
+fn check_guard_step_build_dir_cleanup(step: &str, context_label: &str) -> Result<(), String> {
+    let lines: Vec<&str> = step
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .collect();
+
+    let pkg_idx = lines
+        .iter()
+        .position(|l| {
+            let t = l.trim();
+            t.starts_with("for pkg in ") && BUILD_DIR_CLEANUP_PKGS.iter().all(|p| t.contains(p))
+        })
+        .ok_or_else(|| {
+            format!(
+                "{context_label} のガードステップに、Rust 1.100 の build-dir 用の \
+                 `for pkg in` ループ（wasm-thin / wasm-full / wasm-client の 3 クレート列挙）が \
+                 見つからない"
+            )
+        })?;
+
+    let out_idx = lines
+        .iter()
+        .enumerate()
+        .skip(pkg_idx + 1)
+        .find(|(_, l)| {
+            let t = l.trim();
+            t.starts_with("for out in ") && t.contains("/build/${pkg}") && t.contains("/*/out")
+        })
+        .map(|(i, _)| i)
+        .ok_or_else(|| {
+            format!(
+                "{context_label} のガードステップに、`build/${{pkg}}` 配下の `*/out` を走査する \
+                 `for out in` ループが見つからない"
+            )
+        })?;
+
+    let body = lines[out_idx + 1..].join("\n");
+    if !body.contains("rm -f") {
+        return Err(format!(
+            "{context_label} のガードステップの `for out in` ループに `rm -f` が無い"
+        ));
+    }
+    for target in BUILD_DIR_CLEANUP_RM_TARGETS {
+        if !body.contains(target) {
+            return Err(format!(
+                "{context_label} のガードステップの build-dir 用ループが `{target}` の削除を \
+                 含んでいない（4 種すべてを削除しないと 1.100 で固定名の残りを見逃す）"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// `ci.yml` の全ジョブの全ガードステップが `check_guard_step_build_dir_cleanup` を満たす
+/// ことを検証し、検査したガードステップ数を返す。ジョブ名を列挙せず全ジョブを走査する
+/// ため、ガードを持つジョブが増えても自動で対象になる。
+fn check_all_guard_steps_have_build_dir_cleanup(contents: &str) -> Result<usize, String> {
+    let mut checked = 0usize;
+    for (job_name, job) in split_top_level_jobs(jobs_section(contents)) {
+        for (i, step) in split_steps(&job).into_iter().enumerate() {
+            if step_is_guard_step(step) {
+                check_guard_step_build_dir_cleanup(
+                    step,
+                    &format!("ci.yml の `{job_name}` ジョブ（ステップ位置 {}）", i + 1),
+                )?;
+                checked += 1;
+            }
+        }
+    }
+    if checked < MIN_GUARD_STEPS_IN_CI {
+        return Err(format!(
+            "ci.yml のガードステップが {checked} 件しか見つからない（{MIN_GUARD_STEPS_IN_CI} 件以上を要求する。\
+             ガードの削除やステップ名の変更で検査対象が空振りしていないか確認する）"
+        ));
+    }
+    Ok(checked)
+}
+
+#[test]
+fn ci_workflow_all_guard_steps_clean_rust_1_100_build_dir() {
+    let contents = read_ci_workflow();
+    if let Err(msg) = check_all_guard_steps_have_build_dir_cleanup(&contents) {
+        panic!("{msg}");
+    }
+}
+
 fn assert_job_has_guard_step(job_name: &str) {
     let contents = read_ci_workflow();
     if let Err(msg) = check_job_has_guard_step(&contents, job_name) {
@@ -1246,5 +1362,118 @@ mod fixture_tests {
         assert!(step_is_guard_step(GUARD_STEP_YAML));
         let decoy = "      - name: Some other step\n        run: |\n          echo \"guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）\"\n";
         assert!(!step_is_guard_step(decoy));
+    }
+
+    // -------------------------------------------------------------
+    // Rust 1.100 build-dir 用ループ（check_guard_step_build_dir_cleanup）
+    // -------------------------------------------------------------
+
+    const BUILD_DIR_LOOP_YAML: &str = "          # Rust 1.100: debug/build/${pkg}/*/out の固定名を消す（コメント）\n          for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do\n            for out in \"target/debug/build/${pkg}\"/*/out; do\n              [ -d \"${out}\" ] || continue\n              crate=\"${pkg//-/_}\"\n              rm -f \\\n                \"${out}/lib${crate}.rlib\" \\\n                \"${out}/lib${crate}.so\" \\\n                \"${out}/lib${crate}.dylib\" \\\n                \"${out}/${crate}.d\"\n            done\n          done\n";
+
+    fn guard_with_build_dir_loop() -> String {
+        format!("{GUARD_STEP_YAML}{BUILD_DIR_LOOP_YAML}")
+    }
+
+    #[test]
+    fn fixture_build_dir_cleanup_present_passes() {
+        assert!(
+            check_guard_step_build_dir_cleanup(&guard_with_build_dir_loop(), "fixture").is_ok()
+        );
+    }
+
+    /// 旧 `deps/` の削除リストだけ（1.100 のループが無い）なら FAIL する。
+    /// 既存の完全性検査（3 種の rlib 名）はこの状態でも通る点を合わせて固定する。
+    #[test]
+    fn fixture_build_dir_cleanup_missing_loop_fails() {
+        assert!(check_guard_step_completeness(GUARD_STEP_YAML, "fixture").is_ok());
+        assert!(check_guard_step_build_dir_cleanup(GUARD_STEP_YAML, "fixture").is_err());
+    }
+
+    /// ループを消し、説明コメントにだけ識別子が残る場合も FAIL する。
+    #[test]
+    fn fixture_build_dir_cleanup_comment_only_fails() {
+        let step = format!(
+            "{GUARD_STEP_YAML}          # for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do\n          # for out in \"target/debug/build/${{pkg}}\"/*/out; do rm -f \"${{out}}/lib${{crate}}.rlib\" \"${{out}}/lib${{crate}}.so\" \"${{out}}/lib${{crate}}.dylib\" \"${{out}}/${{crate}}.d\"\n"
+        );
+        assert!(check_guard_step_build_dir_cleanup(&step, "fixture").is_err());
+    }
+
+    #[test]
+    fn fixture_build_dir_cleanup_missing_pkg_fails() {
+        let step = format!(
+            "{GUARD_STEP_YAML}{}",
+            BUILD_DIR_LOOP_YAML.replace(" fandhe-frontend-wasm-client; do", "; do")
+        );
+        assert!(check_guard_step_build_dir_cleanup(&step, "fixture").is_err());
+    }
+
+    #[test]
+    fn fixture_build_dir_cleanup_missing_each_target_fails() {
+        for target in BUILD_DIR_CLEANUP_RM_TARGETS {
+            let line = format!("\"{target}\"");
+            assert!(BUILD_DIR_LOOP_YAML.contains(&line), "{target}");
+            let step = format!(
+                "{GUARD_STEP_YAML}{}",
+                BUILD_DIR_LOOP_YAML.replacen(&line, "\"${out}/unrelated\"", 1)
+            );
+            assert!(
+                check_guard_step_build_dir_cleanup(&step, "fixture").is_err(),
+                "{target} を欠いても通ってしまう"
+            );
+        }
+    }
+
+    /// `for out in` が `build/${pkg}` を見ていない（別ディレクトリを掃除する no-op）なら FAIL する。
+    #[test]
+    fn fixture_build_dir_cleanup_wrong_directory_fails() {
+        let step = format!(
+            "{GUARD_STEP_YAML}{}",
+            BUILD_DIR_LOOP_YAML.replace("/build/${pkg}", "/other/${pkg}")
+        );
+        assert!(check_guard_step_build_dir_cleanup(&step, "fixture").is_err());
+    }
+
+    /// 全ジョブ走査: 1 つのガードだけループが無ければ、そのジョブ名つきで FAIL する。
+    #[test]
+    fn fixture_all_guards_scan_flags_single_job_without_loop() {
+        let guard_ok = guard_with_build_dir_loop();
+        let mut yaml = String::from("\njobs:\n");
+        for i in 0..MIN_GUARD_STEPS_IN_CI {
+            let guard = if i == 3 {
+                GUARD_STEP_YAML
+            } else {
+                guard_ok.as_str()
+            };
+            yaml.push_str(&format!(
+                "  job{i}:\n    runs-on: ubuntu-latest\n    steps:\n{guard}"
+            ));
+        }
+        let err = check_all_guard_steps_have_build_dir_cleanup(&yaml).unwrap_err();
+        assert!(
+            err.contains("job3"),
+            "失敗したジョブ名が含まれるべき: {err}"
+        );
+
+        // 全ガードにループがあれば、検査件数つきで PASS する（positive control）。
+        let mut yaml_ok = String::from("\njobs:\n");
+        for i in 0..MIN_GUARD_STEPS_IN_CI {
+            yaml_ok.push_str(&format!(
+                "  job{i}:\n    runs-on: ubuntu-latest\n    steps:\n{guard_ok}"
+            ));
+        }
+        assert_eq!(
+            check_all_guard_steps_have_build_dir_cleanup(&yaml_ok),
+            Ok(MIN_GUARD_STEPS_IN_CI)
+        );
+    }
+
+    /// ガードが下限未満（検査対象の空振り）なら FAIL する。
+    #[test]
+    fn fixture_all_guards_scan_requires_minimum_count() {
+        let yaml = format!(
+            "\njobs:\n  only:\n    runs-on: ubuntu-latest\n    steps:\n{}",
+            guard_with_build_dir_loop()
+        );
+        assert!(check_all_guard_steps_have_build_dir_cleanup(&yaml).is_err());
     }
 }

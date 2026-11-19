@@ -129,6 +129,25 @@ jobs:
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
               "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+            # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+            # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+            # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+            # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+            # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+            # 再帰削除は使わない）。
+            for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+              for out in "${CARGO_TARGET_DIR}/debug/build/${pkg}"/*/out; do
+                [ -d "${out}" ] || continue
+                crate="${pkg//-/_}"
+                rm -f \
+                  "${out}/lib${crate}.rlib" \
+                  "${out}/lib${crate}.so" \
+                  "${out}/lib${crate}.dylib" \
+                  "${out}/${crate}.d"
+              done
+            done
+          fi
 
       - name: "unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）"
         run: cargo test -p fandhe-frontend-core --test unsafe_boundary --locked
@@ -200,6 +219,25 @@ jobs:
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
               "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+          if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+            # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+            # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+            # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+            # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+            # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+            # 再帰削除は使わない）。
+            for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+              for out in "${CARGO_TARGET_DIR}/debug/build/${pkg}"/*/out; do
+                [ -d "${out}" ] || continue
+                crate="${pkg//-/_}"
+                rm -f \
+                  "${out}/lib${crate}.rlib" \
+                  "${out}/lib${crate}.so" \
+                  "${out}/lib${crate}.dylib" \
+                  "${out}/${crate}.d"
+              done
+            done
           fi
 
       - name: XSS regression tests (REQ-1)
@@ -2388,6 +2426,23 @@ jobs:
               "target/debug/deps/libfandhe_frontend_wasm_client.so" \
               "target/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+          # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+          # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+          # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+          # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+          # 再帰削除は使わない）。
+          for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+            for out in "target/debug/build/${pkg}"/*/out; do
+              [ -d "${out}" ] || continue
+              crate="${pkg//-/_}"
+              rm -f \
+                "${out}/lib${crate}.rlib" \
+                "${out}/lib${crate}.so" \
+                "${out}/lib${crate}.dylib" \
+                "${out}/${crate}.d"
+            done
+          done
 
       - name: cargo clippy --workspace --all-targets -- -D warnings
         # workspace ルートの clippy.toml（disallowed-methods）が効き、
@@ -2554,6 +2609,23 @@ jobs:
               "target/debug/deps/libfandhe_frontend_wasm_client.so" \
               "target/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+          # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+          # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+          # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+          # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+          # 再帰削除は使わない）。
+          for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+            for out in "target/debug/build/${pkg}"/*/out; do
+              [ -d "${out}" ] || continue
+              crate="${pkg//-/_}"
+              rm -f \
+                "${out}/lib${crate}.rlib" \
+                "${out}/lib${crate}.so" \
+                "${out}/lib${crate}.dylib" \
+                "${out}/${crate}.d"
+            done
+          done
 
       - name: cargo clippy (wasm32-unknown-unknown) -- -D warnings
         # --all-targets によりテストターゲット（browser テスト含む）も
@@ -2697,6 +2769,23 @@ jobs:
               "target/debug/deps/libfandhe_frontend_wasm_client.so" \
               "target/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+          # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+          # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+          # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+          # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+          # 再帰削除は使わない）。
+          for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+            for out in "target/debug/build/${pkg}"/*/out; do
+              [ -d "${out}" ] || continue
+              crate="${pkg//-/_}"
+              rm -f \
+                "${out}/lib${crate}.rlib" \
+                "${out}/lib${crate}.so" \
+                "${out}/lib${crate}.dylib" \
+                "${out}/${crate}.d"
+            done
+          done
 
       - name: "cargo check (wasm32-unknown-unknown, --no-default-features, issue #2328)"
         run: cargo check -p fandhe-frontend-wasm-full --no-default-features --target wasm32-unknown-unknown --all-targets --locked
@@ -2814,6 +2903,23 @@ jobs:
               "target/debug/deps/libfandhe_frontend_wasm_client.so" \
               "target/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+          # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+          # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+          # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+          # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+          # 再帰削除は使わない）。
+          for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+            for out in "target/debug/build/${pkg}"/*/out; do
+              [ -d "${out}" ] || continue
+              crate="${pkg//-/_}"
+              rm -f \
+                "${out}/lib${crate}.rlib" \
+                "${out}/lib${crate}.so" \
+                "${out}/lib${crate}.dylib" \
+                "${out}/${crate}.d"
+            done
+          done
 
       - name: "cargo clippy (wasm32-unknown-unknown, feature: perf-assert, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,perf-assert --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
@@ -2992,6 +3098,23 @@ jobs:
               "target/debug/deps/libfandhe_frontend_wasm_client.so" \
               "target/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+          # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+          # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+          # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+          # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+          # 再帰削除は使わない）。
+          for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+            for out in "target/debug/build/${pkg}"/*/out; do
+              [ -d "${out}" ] || continue
+              crate="${pkg//-/_}"
+              rm -f \
+                "${out}/lib${crate}.rlib" \
+                "${out}/lib${crate}.so" \
+                "${out}/lib${crate}.dylib" \
+                "${out}/${crate}.d"
+            done
+          done
 
       - name: "cargo clippy (wasm32-unknown-unknown, feature: accordion, issue #2328)"
         run: cargo clippy -p fandhe-frontend-wasm-full --no-default-features --features wasm-bindgen-exports,accordion --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
@@ -3266,6 +3389,25 @@ jobs:
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
               "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+            # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+            # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+            # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+            # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+            # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+            # 再帰削除は使わない）。
+            for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+              for out in "${CARGO_TARGET_DIR}/debug/build/${pkg}"/*/out; do
+                [ -d "${out}" ] || continue
+                crate="${pkg//-/_}"
+                rm -f \
+                  "${out}/lib${crate}.rlib" \
+                  "${out}/lib${crate}.so" \
+                  "${out}/lib${crate}.dylib" \
+                  "${out}/${crate}.d"
+              done
+            done
+          fi
 
       - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
         # `fw gate` の policy チェック（cargo deny）・lint チェック（clippy
@@ -3354,6 +3496,25 @@ jobs:
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
               "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
           fi
+          if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+            # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+            # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+            # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+            # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+            # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+            # 再帰削除は使わない）。
+            for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+              for out in "${CARGO_TARGET_DIR}/debug/build/${pkg}"/*/out; do
+                [ -d "${out}" ] || continue
+                crate="${pkg//-/_}"
+                rm -f \
+                  "${out}/lib${crate}.rlib" \
+                  "${out}/lib${crate}.so" \
+                  "${out}/lib${crate}.dylib" \
+                  "${out}/${crate}.d"
+              done
+            done
+          fi
 
       - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
         # gate-self-apply ジョブの同名ステップと同一。lint_wasm32 自体は
@@ -3422,6 +3583,25 @@ jobs:
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
               "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
               "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+          if [ -n "${CARGO_TARGET_DIR:-}" ]; then
+            # Rust 1.100 以降の build-dir では `debug/deps/` と `.fingerprint/` が作られず、
+            # ユニットごとの `debug/build/<pkg>/<hash>/out/` へ出力される（依存側は
+            # `--extern` でこの `out/` 内の rlib を直接参照する）。ハッシュ別ディレクトリのため
+            # 別ユニットによる上書きは起きにくいが、deps/ 側と同じ固定ファイル名を個別に
+            # 削除して cargo に当該ユニットを再ビルドさせる（削除対象は固定名のみで、
+            # 再帰削除は使わない）。
+            for pkg in fandhe-frontend-wasm-thin fandhe-frontend-wasm-full fandhe-frontend-wasm-client; do
+              for out in "${CARGO_TARGET_DIR}/debug/build/${pkg}"/*/out; do
+                [ -d "${out}" ] || continue
+                crate="${pkg//-/_}"
+                rm -f \
+                  "${out}/lib${crate}.rlib" \
+                  "${out}/lib${crate}.so" \
+                  "${out}/lib${crate}.dylib" \
+                  "${out}/${crate}.d"
+              done
+            done
           fi
 
       - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
